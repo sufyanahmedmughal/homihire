@@ -1,0 +1,92 @@
+const express = require('express');
+const cors = require('cors');
+const morgan = require('morgan');
+
+const {
+    securityHeaders,
+    globalRateLimiter,
+    sanitizeInput,
+    productionErrorHandler,
+    notFoundHandler,
+} = require('./middleware/security');
+
+// Route imports
+const authRoutes = require('./routes/auth.routes');
+
+const app = express();
+
+// ─────────────────────────────────────────────
+// SECURITY HEADERS — must be first
+// ─────────────────────────────────────────────
+app.use(securityHeaders);
+
+// ─────────────────────────────────────────────
+// CORS
+// ─────────────────────────────────────────────
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:3000', 'http://localhost:19006'];
+
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            // Allow all origins temporarily for ngrok testing
+            callback(null, true);
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    })
+);
+
+// ─────────────────────────────────────────────
+// GLOBAL RATE LIMITER — before routes
+// ─────────────────────────────────────────────
+app.use(globalRateLimiter);
+
+// ─────────────────────────────────────────────
+// BODY PARSERS
+// ─────────────────────────────────────────────
+app.use(express.json({ limit: '10mb' })); // 10mb to allow base64 images in body
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ─────────────────────────────────────────────
+// LOGGING — skip in test environment
+// ─────────────────────────────────────────────
+if (process.env.NODE_ENV !== 'test') {
+    app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+}
+
+// ─────────────────────────────────────────────
+// HEALTH CHECK
+// ─────────────────────────────────────────────
+app.get('/health', (req, res) => {
+    res.status(200).json({
+        success: true,
+        message: 'HomiHire API is running',
+        version: '1.0.0',
+        slice: 'Slice 1 — Foundation & Authentication',
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development',
+    });
+});
+
+// ─────────────────────────────────────────────
+// API ROUTES
+// ─────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+
+// Future slices will add routes here:
+// app.use('/api/admin', adminRoutes);    // Slice 2
+// app.use('/api/jobs', jobRoutes);       // Slice 3
+// app.use('/api/workers', workerRoutes); // Slice 4
+// app.use('/api/payments', payRoutes);   // Slice 6
+// app.use('/api/complaints', ...);       // Slice 7
+
+// ─────────────────────────────────────────────
+// 404 & ERROR HANDLERS — must be last
+// ─────────────────────────────────────────────
+app.use(notFoundHandler);
+app.use(productionErrorHandler);
+
+module.exports = app;
