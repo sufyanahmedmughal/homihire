@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "582398095708",
+        "project_id": "homihire",
+        "storage_bucket": "homihire.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:582398095708:android:13c928d4e6997d2df41199",
+                "android_client_info": {
+                    "package_name": "com.homihire.app"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyB_XjtTzK7N9QtDQEb9vNvxKU1WvsT0XiY"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
