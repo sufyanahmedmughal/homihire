@@ -19,7 +19,7 @@ const MAX_OTP_ATTEMPTS = 3;
  *    → Firebase verifies the OTP and returns a Firebase User + ID Token
  *
  * 4. Client sends the Firebase ID Token to our backend:
- *    POST /api/auth/user/verify-otp  { user_id, firebase_id_token }
+ *    POST /api/auth/user/verify-otp  { r_id, firebase_id_token }
  *
  * 5. Backend calls verifyFirebaseToken(firebase_id_token) — this function
  *    → Checks the token signature with Firebase Admin SDK
