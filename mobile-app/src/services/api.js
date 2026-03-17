@@ -140,4 +140,5 @@ export const uploadToCloudinary = async (imageUri, folder = 'avatars') => {
   }
 };
 
+
 export default api;
