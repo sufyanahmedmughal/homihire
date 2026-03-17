@@ -1,0 +1,419 @@
+import React, { useState, useRef } from 'react';
+import {
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  Image, Alert, StatusBar, KeyboardAvoidingView, Platform,
+  Animated, ActivityIndicator,
+} from 'react-native';
+import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import {
+  PrimaryButton, SecondaryButton, StyledInput,
+  ScreenHeader, ErrorMessage,
+} from '../components/ui';
+import LiveCameraCapture from '../components/LiveCameraCapture';
+import { isValidPakistaniPhone } from '../services/firebase';
+import { uploadToCloudinary } from '../services/api';
+
+export default function UserRegisterScreen({ navigation, route }) {
+  const [form, setForm] = useState({
+    name: '',
+    phone: '',
+  });
+  const [errors, setErrors] = useState({});
+  const [profileImage, setProfileImage] = useState(null);
+  const [profileImageUrl, setProfileImageUrl] = useState(null);
+  const [location, setLocation] = useState(null);
+  const [locationText, setLocationText] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [globalError, setGlobalError] = useState('');
+  const [cameraVisible, setCameraVisible] = useState(false);
+
+  // Passed from OTPVerifyScreen (post-OTP, form data preserved)
+  const prefilled = route?.params?.prefilled || {};
+
+  const validate = () => {
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Full name is required';
+    else if (form.name.trim().length > 100) newErrors.name = 'Name must be under 100 characters';
+    if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
+    else if (!isValidPakistaniPhone(form.phone.trim())) newErrors.phone = 'Format: 03XXXXXXXXX';
+    if (!profileImageUrl) newErrors.profileImage = 'Live photo is required';
+    if (!location) newErrors.location = 'Location is required';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleCameraCapture = async (uri) => {
+    setCameraVisible(false);
+    setProfileImage(uri);
+    setUploadingImage(true);
+    try {
+      const url = await uploadToCloudinary(uri, 'avatars');
+      setProfileImageUrl(url);
+      setErrors((e) => ({ ...e, profileImage: null }));
+    } catch (err) {
+      Alert.alert('Upload Failed', 'Could not upload photo. Please try again.');
+      setProfileImage(null);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleRetake = () => {
+    setProfileImage(null);
+    setProfileImageUrl(null);
+    setCameraVisible(true);
+  };
+
+  const detectLocation = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Needed', 'Please allow location access.');
+      return;
+    }
+    setFetchingLocation(true);
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = loc.coords;
+      setLocation({ lat: latitude, lng: longitude });
+
+      // Reverse geocode for display
+      const geocoded = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (geocoded[0]) {
+        const { street, city, region } = geocoded[0];
+        setLocationText([street, city, region].filter(Boolean).join(', '));
+      } else {
+        setLocationText(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+      }
+      setErrors((e) => ({ ...e, location: null }));
+    } catch (err) {
+      Alert.alert('Location Error', 'Could not detect location. Please try again.');
+    } finally {
+      setFetchingLocation(false);
+    }
+  };
+
+  const handleNext = () => {
+    setGlobalError('');
+    if (!validate()) return;
+
+    // Navigate to OTP verify, passing all registration data
+    navigation.navigate('OTPVerify', {
+      flow: 'userRegister',
+      phone: form.phone.trim(),
+      registrationData: {
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        profile_picture_url: profileImageUrl,
+        location,
+      },
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Live Camera Modal */}
+      <LiveCameraCapture
+        visible={cameraVisible}
+        onCapture={handleCameraCapture}
+        onClose={() => setCameraVisible(false)}
+        facing="front"
+        guideType="face"
+        title="Take your profile photo"
+        subtitle="Center your face in the guide"
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ScreenHeader
+            title="Create Account"
+            subtitle="Set up your user profile to start hiring services"
+            onBack={() => navigation.goBack()}
+          />
+
+          {globalError ? <ErrorMessage message={globalError} /> : null}
+
+          {/* Live Photo Capture */}
+          <Text style={styles.sectionLabel}>LIVE PHOTO VERIFICATION</Text>
+          {profileImage ? (
+            <View style={styles.capturedContainer}>
+              <Image source={{ uri: profileImage }} style={styles.capturedImage} />
+              {uploadingImage && (
+                <View style={styles.uploadOverlay}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.uploadOverlayText}>Uploading...</Text>
+                </View>
+              )}
+              {profileImageUrl && !uploadingImage && (
+                <View style={styles.verifiedBadge}>
+                  <Text style={styles.verifiedIcon}>✓</Text>
+                  <Text style={styles.verifiedText}>Photo verified</Text>
+                </View>
+              )}
+              <TouchableOpacity onPress={handleRetake} style={styles.retakeBtn} activeOpacity={0.8}>
+                <Text style={styles.retakeBtnText}>🔄 Retake Photo</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => setCameraVisible(true)}
+              style={[styles.liveCapturePicker, errors.profileImage && styles.liveCapturePickerError]}
+              activeOpacity={0.8}
+            >
+              <View style={styles.liveCaptureContent}>
+                <View style={styles.cameraIconCircle}>
+                  <Text style={styles.cameraIcon}>📸</Text>
+                </View>
+                <Text style={styles.liveCaptureTitle}>Tap to open camera</Text>
+                <Text style={styles.liveCaptureHint}>Live photo required for verification</Text>
+                <View style={styles.liveBadgeSmall}>
+                  <View style={styles.liveDotSmall} />
+                  <Text style={styles.liveLabelSmall}>LIVE DETECTION</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+          {errors.profileImage && <Text style={styles.fieldError}>{errors.profileImage}</Text>}
+
+          {/* Name */}
+          <StyledInput
+            label="Full Name"
+            value={form.name}
+            onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
+            placeholder="Ahmed Ali"
+            maxLength={100}
+            autoCapitalize="words"
+            error={errors.name}
+          />
+
+          {/* Phone */}
+          <StyledInput
+            label="Phone Number"
+            value={form.phone}
+            onChangeText={(v) => setForm((f) => ({ ...f, phone: v }))}
+            placeholder="03001234567"
+            keyboardType="phone-pad"
+            maxLength={11}
+            autoCapitalize="none"
+            error={errors.phone}
+          />
+
+          {/* Location */}
+          <Text style={styles.sectionLabel}>LOCATION</Text>
+          <TouchableOpacity
+            onPress={detectLocation}
+            style={[
+              styles.locationBtn,
+              location && styles.locationBtnActive,
+              errors.location && styles.locationBtnError,
+            ]}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.locationBtnIcon}>📍</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.locationBtnText, location && { color: COLORS.textPrimary }]}>
+                {fetchingLocation ? 'Detecting...' : location ? locationText || 'Location detected' : 'Detect my location'}
+              </Text>
+              {location && <Text style={styles.locationCoords}>{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</Text>}
+            </View>
+            {location && <Text style={styles.locationCheck}>✓</Text>}
+          </TouchableOpacity>
+          {errors.location && <Text style={styles.fieldError}>{errors.location}</Text>}
+
+          {/* Submit */}
+          <PrimaryButton
+            title="Send OTP & Continue"
+            onPress={handleNext}
+            disabled={uploadingImage || fetchingLocation}
+            style={{ marginTop: SPACING['3xl'] }}
+          />
+
+          <Text style={styles.disclaimer}>
+            By continuing, you agree that homiHire will send a verification code to your phone number.
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scroll: {
+    paddingHorizontal: SPACING['2xl'],
+    paddingTop: 56,
+    paddingBottom: SPACING['4xl'],
+  },
+  sectionLabel: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.xs,
+    fontWeight: FONTS.semibold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginBottom: SPACING.md,
+  },
+
+  // Live capture picker (before capture)
+  liveCapturePicker: {
+    height: 160,
+    borderRadius: RADIUS.xl,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.xl,
+    overflow: 'hidden',
+  },
+  liveCapturePickerError: { borderColor: COLORS.error },
+  liveCaptureContent: { alignItems: 'center' },
+  cameraIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(245,166,35,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.md,
+  },
+  cameraIcon: { fontSize: 26 },
+  liveCaptureTitle: {
+    color: COLORS.primary,
+    fontSize: FONTS.md,
+    fontWeight: FONTS.bold,
+    marginBottom: 4,
+  },
+  liveCaptureHint: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.xs,
+    marginBottom: SPACING.md,
+  },
+  liveBadgeSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(224,82,82,0.15)',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.full,
+    gap: 6,
+  },
+  liveDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.error,
+  },
+  liveLabelSmall: {
+    color: COLORS.error,
+    fontSize: 10,
+    fontWeight: FONTS.bold,
+    letterSpacing: 1,
+  },
+
+  // Captured photo view
+  capturedContainer: {
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
+    marginBottom: SPACING.xl,
+    borderWidth: 2,
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.surfaceElevated,
+  },
+  capturedImage: {
+    width: '100%',
+    height: 200,
+    borderTopLeftRadius: RADIUS.xl - 2,
+    borderTopRightRadius: RADIUS.xl - 2,
+  },
+  uploadOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  uploadOverlayText: { color: COLORS.textPrimary, fontWeight: FONTS.semibold },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    gap: 6,
+    backgroundColor: COLORS.successMuted,
+  },
+  verifiedIcon: {
+    color: COLORS.success,
+    fontSize: FONTS.md,
+    fontWeight: FONTS.bold,
+  },
+  verifiedText: {
+    color: COLORS.success,
+    fontSize: FONTS.sm,
+    fontWeight: FONTS.semibold,
+  },
+  retakeBtn: {
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    backgroundColor: COLORS.surfaceElevated,
+  },
+  retakeBtnText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sm,
+    fontWeight: FONTS.medium,
+  },
+
+  // Location
+  locationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    backgroundColor: COLORS.surfaceElevated,
+    borderRadius: RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: COLORS.surfaceBorder,
+    marginBottom: SPACING.xl,
+  },
+  locationBtnActive: { borderColor: COLORS.success },
+  locationBtnError: { borderColor: COLORS.error },
+  locationBtnIcon: { fontSize: 22, marginRight: SPACING.md },
+  locationBtnText: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.md,
+    fontWeight: FONTS.medium,
+  },
+  locationCoords: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.xs,
+    marginTop: 2,
+  },
+  locationCheck: { color: COLORS.success, fontSize: FONTS.xl, fontWeight: FONTS.bold },
+
+  fieldError: {
+    color: COLORS.error,
+    fontSize: FONTS.xs,
+    marginTop: -SPACING.md,
+    marginBottom: SPACING.md,
+    marginLeft: SPACING.xs,
+  },
+  disclaimer: {
+    color: COLORS.textMuted,
+    fontSize: FONTS.xs,
+    textAlign: 'center',
+    marginTop: SPACING.xl,
+    lineHeight: 18,
+    paddingHorizontal: SPACING.md,
+  },
+});
+
