@@ -1,198 +1,200 @@
-import { useState, useEffect } from 'react';
-import AdminLayout from '../components/AdminLayout';
-import { getPendingWorkers, approveWorker, rejectWorker } from '../services/adminService';
+import { useState, useEffect, useCallback } from 'react';
+import Layout from '../components/Layout';
 import WorkerDetailModal from '../components/WorkerDetailModal';
-import ConfirmActionModal from '../components/ConfirmActionModal';
-import toast from 'react-hot-toast';
-import './TableStyles.css';
+import ApproveRejectModal from '../components/ApproveRejectModal';
+import { getPendingWorkers, approveWorker, rejectWorker } from '../services/adminService';
+import { showToast } from '../components/Toast';
+import './PendingWorkersPage.css';
 
 export default function PendingWorkersPage() {
-    const [workers, setWorkers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [hasMore, setHasMore] = useState(false);
-    const [nextCursor, setNextCursor] = useState(null);
+    const [workers,     setWorkers]     = useState([]);
+    const [loading,     setLoading]     = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore,     setHasMore]     = useState(false);
+    const [nextCursor,  setNextCursor]  = useState(null);
+    const [viewWorker,  setViewWorker]  = useState(null);
+    const [actionModal, setActionModal] = useState(null); // { mode, worker }
 
-    // Modals state
-    const [selectedWorker, setSelectedWorker] = useState(null);
-    const [confirmModal, setConfirmModal] = useState({ isOpen: false, type: null, worker: null });
-    const [actionLoading, setActionLoading] = useState(false);
-
-    const loadWorkers = async (cursor = null, append = false) => {
+    /* ── Load ── */
+    const load = useCallback(async (cursor = null) => {
+        cursor ? setLoadingMore(true) : setLoading(true);
         try {
-            if (!cursor) setLoading(true);
-            const res = await getPendingWorkers({ cursor, limit: 15 });
-            setWorkers(prev => append ? [...prev, ...res.workers] : res.workers);
-            setHasMore(res.pagination.has_more);
-            setNextCursor(res.pagination.next_cursor);
+            const data = await getPendingWorkers({ limit: 12, cursor });
+            const list = data.workers || [];
+            setWorkers(prev => cursor ? [...prev, ...list] : list);
+            setHasMore(data.pagination?.has_more ?? false);
+            setNextCursor(data.pagination?.next_cursor ?? null);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to load workers');
+            showToast(err?.response?.data?.error || 'Failed to load pending workers.', 'error');
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    /* ── Actions ── */
+    const handleApproveConfirm = async (note) => {
+        await approveWorker(actionModal.worker._id, note);
+        showToast(`${actionModal.worker.name} approved successfully.`, 'success');
+        setWorkers(prev => prev.filter(w => w._id !== actionModal.worker._id));
+        setActionModal(null);
+        setViewWorker(null);
     };
 
-    useEffect(() => { loadWorkers(); }, []);
-
-    // Handlers
-    const openApprove = (worker) => setConfirmModal({ isOpen: true, type: 'approve', worker });
-    const openReject = (worker) => setConfirmModal({ isOpen: true, type: 'reject', worker });
-
-    const closeConfirm = () => !actionLoading && setConfirmModal({ isOpen: false, type: null, worker: null });
-
-    const handleConfirmAction = async (text) => {
-        const { type, worker } = confirmModal;
-        setActionLoading(true);
-
-        try {
-            if (type === 'approve') {
-                await approveWorker(worker._id, text);
-                toast.success('Worker approved successfully');
-            } else if (type === 'reject') {
-                await rejectWorker(worker._id, text);
-                toast.success('Worker rejected');
-            }
-            // Remove worker from list
-            setWorkers(prev => prev.filter(w => w._id !== worker._id));
-            setSelectedWorker(null); // Close detail modal if open
-            closeConfirm();
-        } catch (err) {
-            toast.error(err.response?.data?.message || `Failed to ${type} worker`);
-        } finally {
-            setActionLoading(false);
-        }
+    const handleRejectConfirm = async (reason) => {
+        await rejectWorker(actionModal.worker._id, reason);
+        showToast(`${actionModal.worker.name} rejected.`, 'warning');
+        setWorkers(prev => prev.filter(w => w._id !== actionModal.worker._id));
+        setActionModal(null);
+        setViewWorker(null);
     };
+
+    const initials = (name) =>
+        name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'W';
+
+    const fmt = (date) =>
+        date ? new Date(date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
     return (
-        <AdminLayout title="Pending Workers">
-            <div className="table-container">
-                <div className="table-header">
-                    <h2>Review Submissions</h2>
-                    <p>Workers waiting for account approval before they can receive jobs.</p>
+        <Layout pendingCount={workers.length}>
+            <div className="pw-page">
+                {/* Header */}
+                <div className="pw-header">
+                    <div className="pw-header-left">
+                        <h1 className="pw-page-title">Pending Approval</h1>
+                        <p className="pw-page-sub">Review worker registrations — approve or reject with a reason.</p>
+                    </div>
+                    {!loading && (
+                        <div className="pw-count-badge">
+                            ⏳ {workers.length} Pending{hasMore ? '+' : ''}
+                        </div>
+                    )}
                 </div>
 
-                {loading && !workers.length ? (
-                    <div className="table-empty">
-                        <span className="spinner" style={{ width: 32, height: 32 }} />
-                        <p>Loading pending workers...</p>
+                {/* Loading skeleton */}
+                {loading && (
+                    <div className="pw-skeleton-grid">
+                        {[1,2,3,4,5,6].map(i => (
+                            <div key={i} className="pw-skeleton-card" />
+                        ))}
                     </div>
-                ) : workers.length === 0 ? (
-                    <div className="table-empty">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                            <polyline points="22 4 12 14.01 9 11.01" />
-                        </svg>
-                        <p>No pending workers awaiting approval.</p>
-                    </div>
-                ) : (
-                    <>
-                        <div className="table-wrapper">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Worker</th>
-                                        <th>Contact</th>
-                                        <th>Primary Skills</th>
-                                        <th>Fee (PKR)</th>
-                                        <th>Date Applied</th>
-                                        <th className="align-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {workers.map(worker => (
-                                        <tr key={worker._id}>
-                                            <td>
-                                                <div className="td-user">
-                                                    <div className="td-avatar">
-                                                        {worker.selfie_url ? (
-                                                            <img src={worker.selfie_url} alt="" />
-                                                        ) : (<span>{worker.name[0]}</span>)}
-                                                    </div>
-                                                    <div className="td-user-info">
-                                                        <span className="td-name">{worker.name}</span>
-                                                        <span className="td-cnic">{worker.cnic}</span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>{worker.phone}</td>
-                                            <td>
-                                                <div className="td-tags">
-                                                    {worker.skills?.slice(0, 2).map(s => <span key={s} className="td-tag">{s}</span>)}
-                                                    {worker.skills?.length > 2 && <span className="td-tag-more">+{worker.skills.length - 2}</span>}
-                                                </div>
-                                            </td>
-                                            <td>{worker.fee?.toLocaleString() || '—'}</td>
-                                            <td>{new Date(worker.createdAt).toLocaleDateString('en-PK')}</td>
-                                            <td className="align-right">
-                                                <div className="td-actions">
-                                                    <button className="btn-icon" onClick={() => setSelectedWorker(worker)} title="View Details">
-                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                                            <circle cx="12" cy="12" r="3" />
-                                                        </svg>
-                                                    </button>
-                                                    <button className="btn-icon btn-icon-approve" onClick={() => openApprove(worker)} title="Approve">
-                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                            <polyline points="20 6 9 17 4 12" />
-                                                        </svg>
-                                                    </button>
-                                                    <button className="btn-icon btn-icon-reject" onClick={() => openReject(worker)} title="Reject">
-                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                )}
 
-                        {hasMore && (
-                            <div className="table-pagination">
-                                <button
-                                    className="btn-load-more"
-                                    onClick={() => loadWorkers(nextCursor, true)}
-                                    disabled={loading}
-                                >
-                                    {loading ? 'Loading...' : 'Load More Results'}
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <polyline points="6 9 12 15 18 9" />
-                                    </svg>
-                                </button>
+                {/* Empty state */}
+                {!loading && workers.length === 0 && (
+                    <div className="pw-empty">
+                        <div className="pw-empty-icon">🎉</div>
+                        <div className="pw-empty-title">All caught up!</div>
+                        <div className="pw-empty-sub">No pending worker registrations at this time.</div>
+                    </div>
+                )}
+
+                {/* Cards grid */}
+                {!loading && workers.length > 0 && (
+                    <div className="pw-grid">
+                        {workers.map(w => (
+                            <div key={w._id} className="pw-card" onClick={() => setViewWorker(w)}>
+                                <div className="pw-card-top">
+                                    <div className="pw-card-avatar">
+                                        {w.selfie_url
+                                            ? <img src={w.selfie_url} alt={w.name} />
+                                            : initials(w.name)
+                                        }
+                                    </div>
+                                    <div className="pw-card-info">
+                                        <div className="pw-card-name">{w.name}</div>
+                                        <div className="pw-card-phone">📞 {w.phone}</div>
+                                        <div className="pw-card-meta">
+                                            {(w.skills || []).slice(0, 3).map(s => (
+                                                <span key={s} className="pw-card-skill">{s}</span>
+                                            ))}
+                                            {(w.skills?.length ?? 0) > 3 && (
+                                                <span className="pw-card-skill">+{w.skills.length - 3}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="pw-card-body">
+                                    <div className="pw-card-row">
+                                        <span className="pw-card-row-label">CNIC</span>
+                                        <span className="pw-card-row-val" style={{ fontFamily: 'monospace', fontSize: '11px' }}>{w.cnic}</span>
+                                    </div>
+                                    <div className="pw-card-row">
+                                        <span className="pw-card-row-label">Base Fee</span>
+                                        <span className="pw-card-row-val">PKR {(w.fee || 0).toLocaleString()}</span>
+                                    </div>
+                                    <div className="pw-card-row">
+                                        <span className="pw-card-row-label">Registered</span>
+                                        <span className="pw-card-row-val">{fmt(w.created_at)}</span>
+                                    </div>
+                                </div>
+                                <div className="pw-card-footer" onClick={e => e.stopPropagation()}>
+                                    <button
+                                        id={`pw-view-${w._id}`}
+                                        className="pw-btn pw-btn-view"
+                                        onClick={() => setViewWorker(w)}
+                                    >
+                                        View
+                                    </button>
+                                    <button
+                                        id={`pw-approve-${w._id}`}
+                                        className="pw-btn pw-btn-approve"
+                                        onClick={() => setActionModal({ mode: 'approve', worker: w })}
+                                    >
+                                        ✓ Approve
+                                    </button>
+                                    <button
+                                        id={`pw-reject-${w._id}`}
+                                        className="pw-btn pw-btn-reject"
+                                        onClick={() => setActionModal({ mode: 'reject', worker: w })}
+                                    >
+                                        ✕ Reject
+                                    </button>
+                                </div>
                             </div>
-                        )}
-                    </>
+                        ))}
+                    </div>
+                )}
+
+                {/* Load more */}
+                {hasMore && !loading && (
+                    <div className="pw-pagination">
+                        <button
+                            id="pw-load-more-btn"
+                            className="pw-load-more-btn"
+                            onClick={() => load(nextCursor)}
+                            disabled={loadingMore}
+                        >
+                            {loadingMore
+                                ? <><span className="arm-spinner" style={{ width: 14, height: 14, borderWidth: 2 }} /> Loading…</>
+                                : 'Load More'}
+                        </button>
+                    </div>
                 )}
             </div>
 
-            {/* View Full Profile Modal */}
-            <WorkerDetailModal
-                worker={selectedWorker}
-                onClose={() => setSelectedWorker(null)}
-                onApprove={(w) => { /* keep modal open underneath confirm */ openApprove(w); }}
-                onReject={(w) => { openReject(w); }}
-                onBlock={() => {}} // Not blockable if pending
-                loading={actionLoading}
-            />
+            {/* Worker Detail Modal */}
+            {viewWorker && (
+                <WorkerDetailModal
+                    worker={viewWorker}
+                    onClose={() => setViewWorker(null)}
+                    onApprove={(w) => setActionModal({ mode: 'approve', worker: w })}
+                    onReject={(w)  => setActionModal({ mode: 'reject',  worker: w })}
+                    onBlock={() => {}}
+                />
+            )}
 
-            {/* Confirm Actions */}
-            <ConfirmActionModal
-                isOpen={confirmModal.isOpen}
-                title={confirmModal.type === 'approve' ? 'Approve Worker' : 'Reject Worker Application'}
-                description={
-                    confirmModal.type === 'approve'
-                        ? `Are you sure you want to approve ${confirmModal.worker?.name}? They will be notified and can start accepting jobs.`
-                        : `Please provide a reason for rejecting ${confirmModal.worker?.name}. This will be shown to the worker.`
-                }
-                variant={confirmModal.type || 'block'}
-                requireText={confirmModal.type === 'reject'}
-                textLabel={confirmModal.type === 'reject' ? 'Rejection Reason' : 'Internal Note'}
-                textPlaceholder={confirmModal.type === 'reject' ? "e.g., CNIC image is too blurry..." : "Optional admin note..."}
-                onConfirm={handleConfirmAction}
-                onCancel={closeConfirm}
-                loading={actionLoading}
-            />
-        </AdminLayout>
+            {/* Approve / Reject confirm */}
+            {actionModal && (
+                <ApproveRejectModal
+                    mode={actionModal.mode}
+                    target={actionModal.worker}
+                    onConfirm={actionModal.mode === 'approve' ? handleApproveConfirm : handleRejectConfirm}
+                    onCancel={() => setActionModal(null)}
+                />
+            )}
+        </Layout>
     );
 }
