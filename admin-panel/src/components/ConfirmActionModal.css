@@ -1,0 +1,152 @@
+/* ========================================
+   ConfirmActionModal — HomiHire Admin Panel
+   ======================================== */
+.cam-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: calc(var(--z-modal) + 10);
+    padding: 20px;
+    animation: fadeIn var(--transition-fast) both;
+}
+
+.cam-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 440px;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+    animation: fadeInScale var(--transition-base) both;
+}
+
+.cam-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.cam-icon-approve { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 2px solid rgba(16, 185, 129, 0.3); }
+.cam-icon-reject  { background: rgba(239, 68, 68, 0.12);  color: #ef4444; border: 2px solid rgba(239, 68, 68, 0.25); }
+.cam-icon-block   { background: rgba(245, 158, 11, 0.12); color: #f59e0b; border: 2px solid rgba(245, 158, 11, 0.25); }
+
+.cam-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.cam-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+/* Field */
+.cam-field {
+    width: 100%;
+    text-align: left;
+    position: relative;
+}
+
+.cam-required { color: var(--color-danger); margin-left: 2px; }
+
+.cam-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-input);
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-sm);
+    resize: vertical;
+    outline: none;
+    transition: all var(--transition-base);
+    min-height: 100px;
+}
+
+.cam-textarea::placeholder { color: var(--text-muted); }
+
+.cam-textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-glow);
+    background: var(--bg-input-focus);
+}
+
+.cam-textarea-error {
+    border-color: var(--color-danger);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.cam-error-msg {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-danger);
+    margin-top: 4px;
+}
+
+.cam-char-count {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    text-align: right;
+    margin-top: 4px;
+}
+
+/* Actions */
+.cam-actions {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-top: 4px;
+}
+
+.cam-btn {
+    flex: 1;
+    padding: 11px 20px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+    font-family: var(--font-sans);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.cam-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cam-btn-cancel {
+    background: transparent;
+    border-color: var(--border-default);
+    color: var(--text-secondary);
+}
+.cam-btn-cancel:hover:not(:disabled) { background: rgba(255,255,255,0.05); }
+
+.cam-btn-confirm { }
+.cam-btn-confirm.cam-btn-approve { background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #10b981; }
+.cam-btn-confirm.cam-btn-approve:hover:not(:disabled) { background: rgba(16, 185, 129, 0.3); }
+
+.cam-btn-confirm.cam-btn-reject  { background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.35); color: #ef4444; }
+.cam-btn-confirm.cam-btn-reject:hover:not(:disabled) { background: rgba(239, 68, 68, 0.25); }
+
+.cam-btn-confirm.cam-btn-block   { background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.35); color: #f59e0b; }
+.cam-btn-confirm.cam-btn-block:hover:not(:disabled) { background: rgba(245, 158, 11, 0.25); }

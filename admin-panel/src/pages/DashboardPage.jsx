@@ -1,78 +1,126 @@
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import AdminLayout from '../components/AdminLayout';
+import { getAdminStats } from '../services/adminService';
+import toast from 'react-hot-toast';
 import './DashboardPage.css';
 
-/**
- * DashboardPage — Placeholder for Slice 1
- * Full implementation is built in Slice 2.
- * Only serves as the authenticated landing page after login.
- */
 export default function DashboardPage() {
-    const { admin, logout } = useAuth();
-    const navigate = useNavigate();
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    const handleLogout = () => {
-        logout();
-        navigate('/login', { replace: true });
-    };
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const data = await getAdminStats();
+                setStats(data);
+            } catch (err) {
+                toast.error(err.response?.data?.message || 'Failed to load dashboard stats');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, []);
+
+    const w = stats?.total_workers || {};
+    const j = stats?.total_jobs || {};
 
     return (
-        <div className="dashboard-placeholder">
-            <div className="dp-card">
-                {/* Logo */}
-                <div className="dp-logo">
-                    <svg width="36" height="36" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-                        <path d="M14 2L3 9v16h7v-8h8v8h7V9L14 2z" fill="url(#dpGrad)" />
-                        <defs>
-                            <linearGradient id="dpGrad" x1="3" y1="2" x2="25" y2="25" gradientUnits="userSpaceOnUse">
-                                <stop stopColor="#818cf8" />
-                                <stop offset="1" stopColor="#38bdf8" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
+        <AdminLayout title="Dashboard">
+            <div className="dash-container">
+                {/* Header info */}
+                <div className="dash-header-row">
+                    <p className="dash-subtitle">Overview of HomiHire platform metrics.</p>
+                    {stats?.cached_at && (
+                        <span className="dash-cache-time">
+                            Last updated: {new Date(stats.cached_at).toLocaleTimeString('en-PK')}
+                        </span>
+                    )}
                 </div>
 
-                <div className="dp-badge">Slice 1 Complete ✓</div>
-
-                <h1 className="dp-title">Authentication Successful</h1>
-
-                <p className="dp-desc">
-                    You are signed in as{' '}
-                    <span className="dp-highlight">{admin?.name || admin?.email || 'Admin'}</span>.
-                    <br />
-                    The full dashboard will be built in <strong>Slice 2</strong>.
-                </p>
-
-                <div className="dp-info-grid">
-                    <div className="dp-info-item">
-                        <span className="dp-info-label">Admin ID</span>
-                        <span className="dp-info-value">{admin?._id || '—'}</span>
+                {loading ? (
+                    <div className="dash-loading">
+                        <span className="spinner" style={{ width: 40, height: 40 }} />
+                        <p>Loading stats...</p>
                     </div>
-                    <div className="dp-info-item">
-                        <span className="dp-info-label">Email</span>
-                        <span className="dp-info-value">{admin?.email || '—'}</span>
-                    </div>
-                    <div className="dp-info-item">
-                        <span className="dp-info-label">Slice</span>
-                        <span className="dp-info-value">1 — Foundation & Auth</span>
-                    </div>
-                    <div className="dp-info-item">
-                        <span className="dp-info-label">Status</span>
-                        <span className="dp-info-value dp-status-ok">● Authenticated</span>
-                    </div>
-                </div>
+                ) : (
+                    <div className="dash-grids">
+                        {/* Users & Global */}
+                        <div className="dash-grid">
+                            <div className="dash-card dash-card-primary">
+                                <div className="dash-card-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                        <circle cx="9" cy="7" r="4" />
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                                    </svg>
+                                </div>
+                                <div className="dash-card-content">
+                                    <span className="dash-card-title">Total Users</span>
+                                    <span className="dash-card-value">{stats?.total_users || 0}</span>
+                                </div>
+                            </div>
+                            <div className="dash-card">
+                                <div className="dash-card-icon">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                </div>
+                                <div className="dash-card-content">
+                                    <span className="dash-card-title">Total Workers</span>
+                                    <span className="dash-card-value">{
+                                        (w.approved || 0) + (w.pending || 0) + (w.rejected || 0) + (w.blocked || 0)
+                                    }</span>
+                                </div>
+                            </div>
+                        </div>
 
-                <button
-                    id="dashboard-logout-btn"
-                    className="dp-logout-btn"
-                    onClick={handleLogout}
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Sign Out
-                </button>
+                        {/* Workers Breakdown */}
+                        <h2 className="dash-section-title">Workers by Status</h2>
+                        <div className="dash-grid dash-grid-4">
+                            <div className="dash-stat-box dash-stat-pending">
+                                <span className="dash-stat-label">Pending Approval</span>
+                                <span className="dash-stat-num">{w.pending || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-approved">
+                                <span className="dash-stat-label">Approved</span>
+                                <span className="dash-stat-num">{w.approved || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-rejected">
+                                <span className="dash-stat-label">Rejected</span>
+                                <span className="dash-stat-num">{w.rejected || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-blocked">
+                                <span className="dash-stat-label">Blocked</span>
+                                <span className="dash-stat-num">{w.blocked || 0}</span>
+                            </div>
+                        </div>
+
+                        {/* Jobs Breakdown */}
+                        <h2 className="dash-section-title">Jobs by Status</h2>
+                        <div className="dash-grid dash-grid-4">
+                            <div className="dash-stat-box dash-stat-job-pending">
+                                <span className="dash-stat-label">Pending</span>
+                                <span className="dash-stat-num">{j.pending || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-job-active">
+                                <span className="dash-stat-label">In Progress</span>
+                                <span className="dash-stat-num">{j.in_progress || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-job-complete">
+                                <span className="dash-stat-label">Completed</span>
+                                <span className="dash-stat-num">{j.completed || 0}</span>
+                            </div>
+                            <div className="dash-stat-box dash-stat-job-cancelled">
+                                <span className="dash-stat-label">Cancelled / Removed</span>
+                                <span className="dash-stat-num">{(j.cancelled || 0) + (j.worker_removed || 0)}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
+        </AdminLayout>
     );
 }
