@@ -1,0 +1,260 @@
+/* ========================================
+   WorkerDetailModal — HomiHire Admin Panel
+   ======================================== */
+.wdm-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-overlay);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: 20px;
+    animation: fadeIn var(--transition-base) both;
+}
+
+.wdm-modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg), 0 0 60px rgba(99, 102, 241, 0.15);
+    width: 100%;
+    max-width: 720px;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    animation: fadeInScale var(--transition-base) both;
+}
+
+/* Header */
+.wdm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 24px 28px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.wdm-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.wdm-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--gradient-brand-subtle);
+    border: 2px solid var(--border-default);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--color-primary-light);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.wdm-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.wdm-name {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.wdm-status-badge {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    letter-spacing: 0.04em;
+}
+
+.wdm-status-pending  { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+.wdm-status-approved { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+.wdm-status-rejected { background: rgba(239, 68, 68, 0.15);  color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+.wdm-status-blocked  { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
+
+.wdm-close-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--border-default);
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.wdm-close-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: var(--color-danger-light);
+}
+
+/* Body */
+.wdm-body { padding: 24px 28px; }
+
+.wdm-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.wdm-section-title {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
+
+.wdm-danger-text { color: rgba(239, 68, 68, 0.8); }
+
+/* Info card */
+.wdm-info-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+}
+
+.wdm-info-list { display: flex; flex-direction: column; gap: 12px; }
+
+.wdm-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.wdm-info-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.wdm-info-value {
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: right;
+    word-break: break-all;
+}
+
+.wdm-mono { font-family: 'Courier New', monospace; font-size: var(--font-size-xs); }
+.wdm-highlight { color: var(--color-primary-light); font-weight: 600; }
+
+/* Right column */
+.wdm-right-col { display: flex; flex-direction: column; gap: 16px; }
+
+.wdm-skills-card, .wdm-selfie-card, .wdm-rejection-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+}
+
+.wdm-rejection-card { border-color: rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.05); }
+
+.wdm-skills-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.wdm-skill-tag {
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    background: color-mix(in srgb, var(--skill-color) 15%, transparent);
+    color: var(--skill-color);
+    border: 1px solid color-mix(in srgb, var(--skill-color) 30%, transparent);
+}
+
+.wdm-selfie-wrap {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    max-height: 160px;
+}
+
+.wdm-selfie-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.wdm-rejection-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-danger-light);
+    line-height: 1.5;
+}
+
+/* Footer */
+.wdm-footer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 28px;
+    border-top: 1px solid var(--border-subtle);
+    flex-wrap: wrap;
+}
+
+.wdm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border: 1px solid transparent;
+    font-family: var(--font-sans);
+}
+
+.wdm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.wdm-btn-approve {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #10b981;
+}
+.wdm-btn-approve:hover:not(:disabled) { background: rgba(16, 185, 129, 0.25); }
+
+.wdm-btn-reject {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+.wdm-btn-reject:hover:not(:disabled) { background: rgba(239, 68, 68, 0.22); }
+
+.wdm-btn-block {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+}
+.wdm-btn-block:hover:not(:disabled) { background: rgba(245, 158, 11, 0.22); }
+
+.wdm-btn-cancel {
+    background: transparent;
+    border-color: var(--border-default);
+    color: var(--text-secondary);
+    margin-left: auto;
+}
+.wdm-btn-cancel:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
