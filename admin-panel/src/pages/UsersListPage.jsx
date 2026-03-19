@@ -1,71 +1,97 @@
-import { useState, useEffect } from 'react';
-import AdminLayout from '../components/AdminLayout';
-import { getAllUsers, blockUser } from '../services/adminService';
-import ConfirmActionModal from '../components/ConfirmActionModal';
-import toast from 'react-hot-toast';
-import './TableStyles.css';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Layout from '../components/Layout';
+import ApproveRejectModal from '../components/ApproveRejectModal';
+import { getUsers, blockUser } from '../services/adminService';
+import { showToast } from '../components/Toast';
+import './ListPage.css';
 
 export default function UsersListPage() {
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [hasMore, setHasMore] = useState(false);
-    const [nextCursor, setNextCursor] = useState(null);
-
-    // Filters
+    const [users,       setUsers]       = useState([]);
+    const [loading,     setLoading]     = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore,     setHasMore]     = useState(false);
+    const [nextCursor,  setNextCursor]  = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
+    const [search,      setSearch]      = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [blockTarget, setBlockTarget] = useState(null);
+    const searchTimer = useRef(null);
 
-    // Modals
-    const [blockModal, setBlockModal] = useState({ isOpen: false, user: null });
-    const [actionLoading, setActionLoading] = useState(false);
-
-    const loadUsers = async (cursor = null, append = false) => {
+    /* ── Load ── */
+    const load = useCallback(async (cursor = null, s = search, st = statusFilter) => {
+        cursor ? setLoadingMore(true) : setLoading(true);
         try {
-            if (!cursor) setLoading(true);
-            const res = await getAllUsers({ cursor, limit: 15, status: statusFilter });
-            setUsers(prev => append ? [...prev, ...res.users] : res.users);
-            setHasMore(res.pagination.has_more);
-            setNextCursor(res.pagination.next_cursor);
+            const data = await getUsers({ limit: 20, cursor, status: st || undefined, search: s || undefined });
+            const list = data.users || [];
+            setUsers(prev => cursor ? [...prev, ...list] : list);
+            setHasMore(data.pagination?.has_more ?? false);
+            setNextCursor(data.pagination?.next_cursor ?? null);
         } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to load users');
+            showToast(err?.response?.data?.error || 'Failed to load users.', 'error');
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
+    }, [search, statusFilter]);
+
+    useEffect(() => { load(null, search, statusFilter); }, [statusFilter]);
+
+    /* Debounced search */
+    const handleSearchChange = (val) => {
+        setSearchInput(val);
+        clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(() => {
+            setSearch(val);
+            load(null, val, statusFilter);
+        }, 400);
     };
 
-    // Reload when filters change
-    useEffect(() => { loadUsers(); }, [statusFilter]);
-
-    const openBlock = (user) => setBlockModal({ isOpen: true, user });
-
-    const handleBlock = async () => {
-        const { user } = blockModal;
-        setActionLoading(true);
-        try {
-            await blockUser(user._id);
-            toast.success(`User ${user.name} blocked.`);
-            // Update UI list
-            setUsers(prev => prev.map(u => u._id === user._id ? { ...u, status: 'blocked' } : u));
-            setBlockModal({ isOpen: false, user: null });
-        } catch (err) {
-            toast.error(err.response?.data?.message || 'Failed to block user');
-        } finally {
-            setActionLoading(false);
-        }
+    /* ── Block user ── */
+    const handleBlockConfirm = async () => {
+        await blockUser(blockTarget._id);
+        showToast(`${blockTarget.name} has been blocked.`, 'warning');
+        setUsers(prev => prev.map(u => u._id === blockTarget._id ? { ...u, status: 'blocked' } : u));
+        setBlockTarget(null);
     };
+
+    /* ── Helpers ── */
+    const initials = (name) =>
+        name ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'U';
+
+    const fmt = (date) =>
+        date ? new Date(date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
     return (
-        <AdminLayout title="User Management">
-            <div className="table-container">
-                <div className="table-header">
-                    <h2>All Users</h2>
-                    <p>Manage all registered customers on the platform.</p>
+        <Layout>
+            <div className="list-page">
+                {/* Header */}
+                <div className="list-page-header">
+                    <div>
+                        <h1 className="list-page-title">All Users</h1>
+                        <p className="list-page-sub">View, search and manage platform users. Block accounts if needed.</p>
+                    </div>
                 </div>
 
-                <div className="table-filters">
+                {/* Toolbar */}
+                <div className="list-toolbar">
+                    <div className="list-search-wrap">
+                        <span className="list-search-icon">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                        </span>
+                        <input
+                            id="users-search-input"
+                            className="list-search-input"
+                            type="text"
+                            placeholder="Search by name or phone…"
+                            value={searchInput}
+                            onChange={e => handleSearchChange(e.target.value)}
+                        />
+                    </div>
                     <select
-                        className="table-filter-select"
+                        id="users-status-filter"
+                        className="list-filter-select"
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={e => setStatusFilter(e.target.value)}
                     >
                         <option value="">All Statuses</option>
                         <option value="active">Active</option>
@@ -73,101 +99,97 @@ export default function UsersListPage() {
                     </select>
                 </div>
 
-                {loading && !users.length ? (
-                    <div className="table-empty">
-                        <span className="spinner" style={{ width: 32, height: 32 }} />
-                        <p>Loading users...</p>
-                    </div>
-                ) : users.length === 0 ? (
-                    <div className="table-empty">
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <line x1="23" y1="11" x2="17" y2="11" />
-                            <line x1="23" y1="7" x2="23" y2="15" />
-                        </svg>
-                        <p>No users match the current filters.</p>
-                    </div>
-                ) : (
-                    <>
-                        <div className="table-wrapper">
-                            <table className="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>User</th>
-                                        <th>Contact</th>
-                                        <th>Location</th>
-                                        <th>Status</th>
-                                        <th>Registered</th>
-                                        <th className="align-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {users.map(user => (
-                                        <tr key={user._id}>
-                                            <td>
-                                                <div className="td-user">
-                                                    <div className="td-avatar">
-                                                        {user.profile_picture ? (
-                                                            <img src={user.profile_picture} alt="" />
-                                                        ) : (<span>{user.name[0]}</span>)}
-                                                    </div>
-                                                    <div className="td-user-info">
-                                                        <span className="td-name">{user.name}</span>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>{user.phone}</td>
-                                            <td>
-                                                {user.location?.coordinates
-                                                    ? `${user.location.coordinates[1].toFixed(2)}°N, ${user.location.coordinates[0].toFixed(2)}°E`
-                                                    : 'Not Set'}
-                                            </td>
-                                            <td>
-                                                <span className={`wdm-status-badge wdm-status-${user.status === 'active' ? 'approved' : user.status}`} style={{display:'inline-block'}}>
-                                                    ● {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                                                </span>
-                                            </td>
-                                            <td>{new Date(user.createdAt).toLocaleDateString('en-PK')}</td>
-                                            <td className="align-right">
-                                                <div className="td-actions">
-                                                    {user.status !== 'blocked' && (
-                                                        <button className="btn-icon btn-icon-block" onClick={() => openBlock(user)} title="Block User">
-                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                <circle cx="12" cy="12" r="10" />
-                                                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                                                            </svg>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                {/* Table */}
+                <div className="list-table-wrap">
+                    {loading ? (
+                        <div className="list-loading-rows">
+                            {[1,2,3,4,5,6,7].map(i => <div key={i} className="list-skeleton-row" />)}
                         </div>
+                    ) : users.length === 0 ? (
+                        <div className="list-empty">No users found matching your filters.</div>
+                    ) : (
+                        <table className="list-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                    <th>Firebase Verified</th>
+                                    <th>Registered</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {users.map(u => (
+                                    <tr key={u._id}>
+                                        <td>
+                                            <div className="list-person-cell">
+                                                <div className="list-avatar">
+                                                    {u.profile_picture
+                                                        ? <img src={u.profile_picture} alt={u.name} />
+                                                        : initials(u.name)
+                                                    }
+                                                </div>
+                                                <div>
+                                                    <div className="list-person-name">{u.name}</div>
+                                                    <div className="list-person-phone">{u.phone}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span className={`list-badge ${u.status}`}>
+                                                {u.status === 'active' ? '● Active' : '■ Blocked'}
+                                            </span>
+                                        </td>
+                                        <td style={{ color: u.firebase_phone_verified ? '#6ee7b7' : 'var(--text-muted)', fontSize: '12px' }}>
+                                            {u.firebase_phone_verified ? '✓ Verified' : '— Not verified'}
+                                        </td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(u.created_at)}</td>
+                                        <td>
+                                            <div className="list-action-cell">
+                                                {u.status === 'blocked' ? (
+                                                    <span className="list-btn list-btn-already-blocked">🚫 Blocked</span>
+                                                ) : (
+                                                    <button
+                                                        id={`users-block-${u._id}`}
+                                                        className="list-btn list-btn-block"
+                                                        onClick={() => setBlockTarget(u)}
+                                                    >
+                                                        🚫 Block
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
 
-                        {hasMore && (
-                            <div className="table-pagination">
-                                <button className="btn-load-more" onClick={() => loadUsers(nextCursor, true)} disabled={loading}>
-                                    {loading ? 'Loading...' : 'Load More Results'}
-                                </button>
-                            </div>
-                        )}
-                    </>
+                {/* Load more */}
+                {hasMore && !loading && (
+                    <div className="list-pagination">
+                        <button
+                            id="users-load-more-btn"
+                            className="list-load-more-btn"
+                            onClick={() => load(nextCursor)}
+                            disabled={loadingMore}
+                        >
+                            {loadingMore ? 'Loading…' : 'Load More'}
+                        </button>
+                    </div>
                 )}
             </div>
 
-            <ConfirmActionModal
-                isOpen={blockModal.isOpen}
-                title="Block User"
-                description={`Are you sure you want to block ${blockModal.user?.name}? They will lose access to the platform immediately.`}
-                variant="block"
-                requireText={false}
-                onConfirm={handleBlock}
-                onCancel={() => !actionLoading && setBlockModal({ isOpen: false, user: null })}
-                loading={actionLoading}
-            />
-        </AdminLayout>
+            {/* Block confirm modal */}
+            {blockTarget && (
+                <ApproveRejectModal
+                    mode="block-user"
+                    target={blockTarget}
+                    onConfirm={handleBlockConfirm}
+                    onCancel={() => setBlockTarget(null)}
+                />
+            )}
+        </Layout>
     );
 }

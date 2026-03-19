@@ -1,97 +1,158 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
-const NAV_LINKS = [
+const NAV_ITEMS = [
     {
-        to: '/dashboard',
-        label: 'Dashboard',
-        icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-                <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-            </svg>
-        ),
+        group: 'Overview',
+        items: [
+            { id: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: IconDashboard },
+        ],
     },
     {
-        to: '/pending-workers',
-        label: 'Pending Workers',
-        icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-        ),
+        group: 'Workers',
+        items: [
+            { id: 'pending',  label: 'Pending Approval', path: '/pending-workers', icon: IconClock,   badgeKey: 'pending' },
+            { id: 'workers',  label: 'All Workers',      path: '/workers',         icon: IconWorker },
+        ],
     },
     {
-        to: '/workers',
-        label: 'All Workers',
-        icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-            </svg>
-        ),
-    },
-    {
-        to: '/users',
-        label: 'All Users',
-        icon: (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <line x1="23" y1="11" x2="17" y2="11" />
-                <line x1="23" y1="7" x2="23" y2="15" />
-            </svg>
-        ),
+        group: 'Users',
+        items: [
+            { id: 'users', label: 'All Users', path: '/users', icon: IconUsers },
+        ],
     },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ pendingCount = 0 }) {
+    const [collapsed, setCollapsed] = useState(false);
+    const { admin, logout }         = useAuth();
+    const navigate                  = useNavigate();
+    const location                  = useLocation();
+
+    const handleLogout = () => {
+        logout();
+        navigate('/login', { replace: true });
+    };
+
+    const initials = admin?.name
+        ? admin.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : (admin?.email?.[0] || 'A').toUpperCase();
+
     return (
-        <aside className="sidebar" aria-label="Admin navigation">
-            {/* Logo */}
-            <div className="sidebar-logo">
-                <div className="sidebar-logo-icon">
-                    <svg width="22" height="22" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-                        <path d="M14 2L3 9v16h7v-8h8v8h7V9L14 2z" fill="url(#sbGrad)" />
-                        <defs>
-                            <linearGradient id="sbGrad" x1="3" y1="2" x2="25" y2="25" gradientUnits="userSpaceOnUse">
-                                <stop stopColor="#818cf8" />
-                                <stop offset="1" stopColor="#38bdf8" />
-                            </linearGradient>
-                        </defs>
+        <aside className={`sidebar${collapsed ? ' collapsed' : ''}`}>
+            {/* Brand */}
+            <div className="sidebar-brand">
+                <div className="sidebar-brand-icon">
+                    <svg width="18" height="18" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+                        <path d="M14 2L3 9v16h7v-8h8v8h7V9L14 2z" fill="white" />
                     </svg>
                 </div>
-                <div className="sidebar-logo-text">
-                    <span className="sidebar-logo-name">HomiHire</span>
-                    <span className="sidebar-logo-role">Admin Panel</span>
+                <div className="sidebar-brand-text">
+                    <span className="sidebar-brand-name">HomiHire</span>
+                    <span className="sidebar-brand-sub">Admin Panel</span>
                 </div>
             </div>
 
+            {/* Collapse toggle */}
+            <button
+                className="sidebar-toggle"
+                onClick={() => setCollapsed(c => !c)}
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                id="sidebar-collapse-btn"
+            >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <path d="M15 18l-6-6 6-6" />
+                </svg>
+            </button>
+
             {/* Nav */}
-            <nav className="sidebar-nav">
-                <span className="sidebar-section-label">Navigation</span>
-                {NAV_LINKS.map(({ to, label, icon }) => (
-                    <NavLink
-                        key={to}
-                        to={to}
-                        className={({ isActive }) =>
-                            `sidebar-link ${isActive ? 'sidebar-link--active' : ''}`
-                        }
-                    >
-                        <span className="sidebar-link-icon">{icon}</span>
-                        <span className="sidebar-link-label">{label}</span>
-                    </NavLink>
+            <nav className="sidebar-nav" aria-label="Admin navigation">
+                {NAV_ITEMS.map(group => (
+                    <div key={group.group}>
+                        <div className="sidebar-section-label">{group.group}</div>
+                        {group.items.map(item => {
+                            const Icon    = item.icon;
+                            const isActive = location.pathname === item.path;
+                            const badge   = item.badgeKey === 'pending' && pendingCount > 0;
+                            return (
+                                <button
+                                    key={item.id}
+                                    id={`sidebar-nav-${item.id}`}
+                                    className={`sidebar-link${isActive ? ' active' : ''}`}
+                                    onClick={() => navigate(item.path)}
+                                >
+                                    <span className="sidebar-link-icon"><Icon /></span>
+                                    <span className="sidebar-link-label">{item.label}</span>
+                                    {badge && (
+                                        <span className="sidebar-link-badge">{pendingCount}</span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
                 ))}
             </nav>
 
             {/* Footer */}
             <div className="sidebar-footer">
-                <div className="sidebar-slice-badge">Slice 2</div>
-                <span className="sidebar-footer-text">Admin Dashboard & Worker Approval</span>
+                <div className="sidebar-admin">
+                    <div className="sidebar-admin-avatar">{initials}</div>
+                    <div className="sidebar-admin-info">
+                        <div className="sidebar-admin-name">{admin?.name || admin?.email || 'Admin'}</div>
+                        <div className="sidebar-admin-role">Super Admin</div>
+                    </div>
+                </div>
+                <button
+                    id="sidebar-logout-btn"
+                    className="sidebar-logout-btn"
+                    onClick={handleLogout}
+                >
+                    <span className="sidebar-link-icon"><IconLogout /></span>
+                    <span className="sidebar-logout-btn-label">Sign Out</span>
+                </button>
             </div>
         </aside>
+    );
+}
+
+/* ── Inline SVG Icons ── */
+function IconDashboard() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+            <rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+        </svg>
+    );
+}
+function IconClock() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
+        </svg>
+    );
+}
+function IconWorker() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
+            <path d="M9 11l1 1 2-3" />
+        </svg>
+    );
+}
+function IconUsers() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+        </svg>
+    );
+}
+function IconLogout() {
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
+        </svg>
     );
 }
