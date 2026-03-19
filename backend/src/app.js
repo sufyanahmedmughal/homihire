@@ -12,6 +12,7 @@ const {
 
 // Route imports
 const authRoutes = require('./routes/auth.routes');
+const adminRoutes = require('./routes/admin.routes'); // Slice 2
 
 const app = express();
 
@@ -64,8 +65,8 @@ app.get('/health', (req, res) => {
     res.status(200).json({
         success: true,
         message: 'HomiHire API is running',
-        version: '1.0.0',
-        slice: 'Slice 1 — Foundation & Authentication',
+        version: '2.0.0',
+        slice: 'Slice 2 — Admin Dashboard & Worker Approval',
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV || 'development',
     });
@@ -74,10 +75,10 @@ app.get('/health', (req, res) => {
 // ─────────────────────────────────────────────
 // API ROUTES
 // ─────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRoutes);       // Slice 1 — Auth & Registration
+app.use('/api/admin', adminRoutes);     // Slice 2 — Admin Dashboard & Worker Approval
 
 // Future slices will add routes here:
-// app.use('/api/admin', adminRoutes);    // Slice 2
 // app.use('/api/jobs', jobRoutes);       // Slice 3
 // app.use('/api/workers', workerRoutes); // Slice 4
 // app.use('/api/payments', payRoutes);   // Slice 6
