@@ -141,7 +141,7 @@ const workerSchema = new mongoose.Schema(
 // Indexes — compound for geospatial + status filter (Slice 3)
 workerSchema.index({ location: '2dsphere' });
 workerSchema.index({ status: 1, is_available: 1, location: '2dsphere' });
-workerSchema.index({ firebase_uid: 1 });
+// Note: firebase_uid index is created automatically via `unique: true` on the field — no schema.index() needed
 
 const Worker = mongoose.model('Worker', workerSchema);
 

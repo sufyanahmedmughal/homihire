@@ -17,6 +17,13 @@ const adminRoutes = require('./routes/admin.routes'); // Slice 2
 const app = express();
 
 // ─────────────────────────────────────────────
+// TRUST PROXY — required when behind ngrok/Railway/any reverse proxy
+// Needed so express-rate-limit reads the real IP from X-Forwarded-For
+// without throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+// ─────────────────────────────────────────────
+app.set('trust proxy', 1);
+
+// ─────────────────────────────────────────────
 // SECURITY HEADERS — must be first
 // ─────────────────────────────────────────────
 app.use(securityHeaders);
