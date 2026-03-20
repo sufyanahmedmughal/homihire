@@ -174,7 +174,7 @@ export default function WorkersListPage() {
                                                 {w.status}
                                             </span>
                                         </td>
-                                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(w.created_at)}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(w.registered_at)}</td>
                                         <td>
                                             <div className="list-action-cell">
                                                 <button

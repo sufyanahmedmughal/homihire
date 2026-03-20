@@ -127,7 +127,7 @@ export default function PendingWorkersPage() {
                                     </div>
                                     <div className="pw-card-row">
                                         <span className="pw-card-row-label">Registered</span>
-                                        <span className="pw-card-row-val">{fmt(w.created_at)}</span>
+                                        <span className="pw-card-row-val">{fmt(w.registered_at)}</span>
                                     </div>
                                 </div>
                                 <div className="pw-card-footer" onClick={e => e.stopPropagation()}>

@@ -143,7 +143,7 @@ export default function UsersListPage() {
                                         <td style={{ color: u.firebase_phone_verified ? '#6ee7b7' : 'var(--text-muted)', fontSize: '12px' }}>
                                             {u.firebase_phone_verified ? '✓ Verified' : '— Not verified'}
                                         </td>
-                                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(u.created_at)}</td>
+                                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(u.registered_at)}</td>
                                         <td>
                                             <div className="list-action-cell">
                                                 {u.status === 'blocked' ? (

@@ -8,6 +8,7 @@ import api from './api';
  */
 export const getStats = async () => {
     const res = await api.get('/api/admin/stats');
+    // Backend spreads stats at top-level: { success, total_users, total_workers, total_jobs, cached_at }
     return res.data;
 };
 
@@ -22,7 +23,12 @@ export const getPendingWorkers = async ({ limit = 20, cursor } = {}) => {
     const params = { limit };
     if (cursor) params.cursor = cursor;
     const res = await api.get('/api/admin/workers/pending', { params });
-    return res.data;
+    // Backend returns: { success, data: [...], pagination: { has_more, next_cursor, limit } }
+    // Normalise to { workers, pagination } so every caller uses the same shape
+    return {
+        workers: res.data.data ?? [],
+        pagination: res.data.pagination ?? {},
+    };
 };
 
 // ─── Workers ──────────────────────────────────────────────────────────────────
@@ -36,9 +42,13 @@ export const getWorkers = async ({ limit = 20, cursor, status, skill } = {}) => 
     const params = { limit };
     if (cursor) params.cursor = cursor;
     if (status) params.status = status;
-    if (skill)  params.skill  = skill;
+    if (skill)  params.skills = skill;   // backend query param is 'skills' not 'skill'
     const res = await api.get('/api/admin/workers', { params });
-    return res.data;
+    // Backend returns: { success, data: [...], pagination: { has_more, next_cursor, limit } }
+    return {
+        workers: res.data.data ?? [],
+        pagination: res.data.pagination ?? {},
+    };
 };
 
 /**
@@ -83,7 +93,11 @@ export const getUsers = async ({ limit = 20, cursor, status, search } = {}) => {
     if (status) params.status = status;
     if (search) params.search = search;
     const res = await api.get('/api/admin/users', { params });
-    return res.data;
+    // Backend returns: { success, data: [...], pagination: { has_more, next_cursor, limit } }
+    return {
+        users: res.data.data ?? [],
+        pagination: res.data.pagination ?? {},
+    };
 };
 
 /**
