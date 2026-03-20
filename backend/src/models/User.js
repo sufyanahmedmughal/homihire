@@ -72,7 +72,7 @@ const userSchema = new mongoose.Schema(
 
 // Geospatial index for location-based queries (Slice 3+)
 userSchema.index({ location: '2dsphere' });
-userSchema.index({ firebase_uid: 1 });
+// Note: firebase_uid index is created automatically via `unique: true` on the field — no schema.index() needed
 
 const User = mongoose.model('User', userSchema);
 module.exports = User;
