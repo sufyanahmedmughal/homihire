@@ -1,7 +1,7 @@
 {
   "name": "homihire-backend",
   "version": "1.0.0",
-  "description": "HomiHire Home Service Platform - Backend API (Slice 1: Authentication)",
+  "description": "HomiHire Home Service Platform - Backend API (Slice 2: Admin Dashboard & Worker Approval)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -29,10 +29,12 @@
     "express-validator": "^7.2.1",
     "firebase-admin": "^13.2.0",
     "helmet": "^8.1.0",
+    "ioredis": "^5.6.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.2.4",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
+    "node-cron": "^3.0.3",
     "uuid": "^13.0.0",
     "winston": "^3.19.0",
     "winston-mongodb": "^7.0.1"
