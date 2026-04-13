@@ -37,7 +37,7 @@ const getPendingWorkers = async (req, res) => {
         const workers = await Worker.find(query)
             .sort({ _id: -1 })
             .limit(limit + 1) // +1 trick
-            .select('name cnic phone selfie_url skills fee location status createdAt admin_note');
+            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee location status createdAt admin_note');
 
         const { items, hasMore, nextCursor } = paginateResult(workers, limit);
 
@@ -48,6 +48,8 @@ const getPendingWorkers = async (req, res) => {
             cnic: w.cnic,
             phone: w.phone,
             selfie_url: w.selfie_url,
+            cnic_front_url: w.cnic_front_url,
+            cnic_back_url: w.cnic_back_url,
             skills: w.skills,
             fee: w.fee,
             location: {
@@ -92,6 +94,8 @@ const getWorkerById = async (req, res) => {
                 cnic: worker.cnic,
                 phone: worker.phone,
                 selfie_url: worker.selfie_url,
+                cnic_front_url: worker.cnic_front_url,
+                cnic_back_url: worker.cnic_back_url,
                 skills: worker.skills,
                 fee: worker.fee,
                 location: {
@@ -465,7 +469,7 @@ const getAllWorkers = async (req, res) => {
         const workers = await Worker.find(query)
             .sort({ _id: -1 })
             .limit(limit + 1)
-            .select('name cnic phone selfie_url skills fee status rating total_jobs is_available createdAt');
+            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee status rating total_jobs is_available createdAt');
 
         const { items, hasMore, nextCursor } = paginateResult(workers, limit);
 
@@ -477,6 +481,8 @@ const getAllWorkers = async (req, res) => {
                 cnic: w.cnic,
                 phone: w.phone,
                 selfie_url: w.selfie_url,
+                cnic_front_url: w.cnic_front_url,
+                cnic_back_url: w.cnic_back_url,
                 skills: w.skills,
                 fee: w.fee,
                 status: w.status,

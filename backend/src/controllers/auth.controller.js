@@ -147,7 +147,7 @@ const verifyUserFirebaseToken = async (req, res) => {
 const verifyWorkerFirebaseToken = async (req, res) => {
     const ip = req.ip || req.socket?.remoteAddress;
     try {
-        let { firebase_id_token, name, cnic, phone, selfie_url, skills, fee, location } = req.body;
+        let { firebase_id_token, name, cnic, phone, selfie_url, cnic_front_url, cnic_back_url, skills, fee, location } = req.body;
 
         // Parse skills if sent as JSON string (e.g. from form-data)
         if (typeof skills === 'string') {
@@ -165,6 +165,8 @@ const verifyWorkerFirebaseToken = async (req, res) => {
         if (!location || typeof location.lat === 'undefined') errors.push('Location with lat and lng is required');
         else if (!isValidCoordinates(Number(location.lat), Number(location.lng))) errors.push('Invalid location coordinates');
         if (selfie_url && !isValidCloudinaryUrl(selfie_url)) errors.push('selfie_url must be a valid Cloudinary URL');
+        if (cnic_front_url && !isValidCloudinaryUrl(cnic_front_url)) errors.push('cnic_front_url must be a valid Cloudinary URL');
+        if (cnic_back_url && !isValidCloudinaryUrl(cnic_back_url)) errors.push('cnic_back_url must be a valid Cloudinary URL');
 
         if (errors.length > 0) {
             return res.status(400).json({ success: false, message: errors[0], errors });
@@ -224,6 +226,8 @@ const verifyWorkerFirebaseToken = async (req, res) => {
             firebase_uid: decoded.uid,
             firebase_phone_verified: true,
             selfie_url: selfie_url || null,
+            cnic_front_url: cnic_front_url || null,
+            cnic_back_url: cnic_back_url || null,
             skills,
             fee: Number(fee),
             location: {

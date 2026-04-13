@@ -51,6 +51,14 @@ const workerSchema = new mongoose.Schema(
             type: String, // Cloudinary URL — uploaded by client BEFORE calling this API
             default: null,
         },
+        cnic_front_url: {
+            type: String, // Cloudinary URL for CNIC front image — uploaded by client
+            default: null,
+        },
+        cnic_back_url: {
+            type: String, // Cloudinary URL for CNIC back image — uploaded by client
+            default: null,
+        },
         skills: {
             type: [String],
             required: [true, 'At least one skill is required'],
