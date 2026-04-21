@@ -10,6 +10,7 @@ import {
   PrimaryButton, StyledInput, ScreenHeader, ErrorMessage, Tag, SectionTitle,
 } from '../components/ui';
 import LiveCameraCapture from '../components/LiveCameraCapture';
+import ImageCropModal from '../components/ImageCropModal';
 import { isValidPakistaniPhone, isValidCNIC } from '../services/firebase';
 import { uploadToCloudinary } from '../services/api';
 import { extractCNICData } from '../services/cnicOcr';
@@ -52,6 +53,11 @@ export default function WorkerRegisterScreen({ navigation }) {
 
   // Camera modal state
   const [cameraVisible, setCameraVisible] = useState(false);
+
+  // Crop modal state
+  const [cropVisible, setCropVisible] = useState(false);
+  const [cropImageUri, setCropImageUri] = useState(null);
+  const [cropTarget, setCropTarget] = useState(null); // 'cnic_front' | 'cnic_back'
   const [cameraMode, setCameraMode] = useState('selfie'); // 'selfie' | 'cnic_front' | 'cnic_back'
 
   const openCamera = (mode) => {
@@ -89,6 +95,7 @@ export default function WorkerRegisterScreen({ navigation }) {
     setCameraVisible(false);
 
     if (cameraMode === 'selfie') {
+      // Selfie — upload directly, no crop needed
       setSelfieImage(uri);
       setUploadingImage(true);
       try {
@@ -101,16 +108,31 @@ export default function WorkerRegisterScreen({ navigation }) {
       } finally {
         setUploadingImage(false);
       }
-    } else if (cameraMode === 'cnic_front') {
-      setCnicFrontImage(uri);
+    } else if (cameraMode === 'cnic_front' || cameraMode === 'cnic_back') {
+      // CNIC front/back — open crop modal first
+      setCropImageUri(uri);
+      setCropTarget(cameraMode);
+      setCropVisible(true);
+    }
+  };
+
+  // Called after user crops (or skips crop) for CNIC images
+  const handleCropComplete = async (croppedUri) => {
+    setCropVisible(false);
+    const target = cropTarget;
+    setCropImageUri(null);
+    setCropTarget(null);
+
+    if (target === 'cnic_front') {
+      setCnicFrontImage(croppedUri);
       setUploadingCnicFront(true);
       setScanningCnic(true);
       setAutoDetectedFields({});
       try {
         // Run OCR + upload in parallel
         const [url, ocrData] = await Promise.all([
-          uploadToCloudinary(uri, 'cnic'),
-          extractCNICData(uri),
+          uploadToCloudinary(croppedUri, 'cnic'),
+          extractCNICData(croppedUri),
         ]);
         setCnicFrontUrl(url);
         setErrors((e) => ({ ...e, cnicFront: null }));
@@ -137,11 +159,11 @@ export default function WorkerRegisterScreen({ navigation }) {
         setUploadingCnicFront(false);
         setScanningCnic(false);
       }
-    } else if (cameraMode === 'cnic_back') {
-      setCnicBackImage(uri);
+    } else if (target === 'cnic_back') {
+      setCnicBackImage(croppedUri);
       setUploadingCnicBack(true);
       try {
-        const url = await uploadToCloudinary(uri, 'cnic');
+        const url = await uploadToCloudinary(croppedUri, 'cnic');
         setCnicBackUrl(url);
         setErrors((e) => ({ ...e, cnicBack: null }));
       } catch {
@@ -151,6 +173,13 @@ export default function WorkerRegisterScreen({ navigation }) {
         setUploadingCnicBack(false);
       }
     }
+  };
+
+  // Called when user cancels crop — use original uncropped image
+  const handleCropCancel = () => {
+    const uri = cropImageUri;
+    // Use original image without cropping
+    handleCropComplete(uri);
   };
 
   const handleRetakeSelfie = () => {
@@ -248,6 +277,16 @@ export default function WorkerRegisterScreen({ navigation }) {
         guideType={camConfig.guideType}
         title={camConfig.title}
         subtitle={camConfig.subtitle}
+      />
+
+      {/* CNIC Crop Modal */}
+      <ImageCropModal
+        visible={cropVisible}
+        imageUri={cropImageUri}
+        onCrop={handleCropComplete}
+        onCancel={handleCropCancel}
+        title={cropTarget === 'cnic_front' ? 'Crop CNIC Front' : 'Crop CNIC Back'}
+        aspectRatio={1.585}  
       />
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
