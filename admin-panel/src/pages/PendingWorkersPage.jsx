@@ -7,12 +7,12 @@ import { showToast } from '../components/Toast';
 import './PendingWorkersPage.css';
 
 export default function PendingWorkersPage() {
-    const [workers,     setWorkers]     = useState([]);
-    const [loading,     setLoading]     = useState(true);
+    const [workers, setWorkers] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
-    const [hasMore,     setHasMore]     = useState(false);
-    const [nextCursor,  setNextCursor]  = useState(null);
-    const [viewWorker,  setViewWorker]  = useState(null);
+    const [hasMore, setHasMore] = useState(false);
+    const [nextCursor, setNextCursor] = useState(null);
+    const [viewWorker, setViewWorker] = useState(null);
     const [actionModal, setActionModal] = useState(null); // { mode, worker }
 
     /* ── Load ── */
@@ -76,7 +76,7 @@ export default function PendingWorkersPage() {
                 {/* Loading skeleton */}
                 {loading && (
                     <div className="pw-skeleton-grid">
-                        {[1,2,3,4,5,6].map(i => (
+                        {[1, 2, 3, 4, 5, 6].map(i => (
                             <div key={i} className="pw-skeleton-card" />
                         ))}
                     </div>
@@ -181,8 +181,8 @@ export default function PendingWorkersPage() {
                     worker={viewWorker}
                     onClose={() => setViewWorker(null)}
                     onApprove={(w) => setActionModal({ mode: 'approve', worker: w })}
-                    onReject={(w)  => setActionModal({ mode: 'reject',  worker: w })}
-                    onBlock={() => {}}
+                    onReject={(w) => setActionModal({ mode: 'reject', worker: w })}
+                    onBlock={() => { }}
                 />
             )}
 
@@ -198,3 +198,7 @@ export default function PendingWorkersPage() {
         </Layout>
     );
 }
+
+
+
+

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import './WorkerDetailModal.css';
 
 const STATUS_LABELS = {
@@ -8,6 +9,8 @@ const STATUS_LABELS = {
 };
 
 export default function WorkerDetailModal({ worker, onClose, onApprove, onReject, onBlock }) {
+    const [zoomedImg, setZoomedImg] = useState(null);
+
     if (!worker) return null;
 
     const initials = worker.name
@@ -94,22 +97,64 @@ export default function WorkerDetailModal({ worker, onClose, onApprove, onReject
                         </div>
                     )}
 
-                    {/* Selfie */}
-                    <div className="wdm-selfie-section">
-                        <span className="wdm-selfie-label">Identity Selfie</span>
-                        {worker.selfie_url ? (
-                            <img
-                                className="wdm-selfie-img"
-                                src={worker.selfie_url}
-                                alt="Worker selfie"
-                                loading="lazy"
-                            />
-                        ) : (
-                            <div className="wdm-selfie-placeholder">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                No selfie uploaded
+                    {/* Selfie and Documents */}
+                    <div className="wdm-media-wrap">
+                        {/* Selfie */}
+                        <div className="wdm-media-section">
+                            <span className="wdm-media-label">Identity Selfie</span>
+                            {worker.selfie_url ? (
+                                <img
+                                    className="wdm-media-img wdm-zoomable"
+                                    src={worker.selfie_url}
+                                    alt="Worker selfie"
+                                    loading="lazy"
+                                    onClick={() => setZoomedImg(worker.selfie_url)}
+                                />
+                            ) : (
+                                <div className="wdm-media-placeholder">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+                                    No selfie uploaded
+                                </div>
+                            )}
+                        </div>
+
+                        {/* CNIC Images */}
+                        <div className="wdm-cnic-grid">
+                            <div className="wdm-media-section">
+                                <span className="wdm-media-label">CNIC Front</span>
+                                {worker.cnic_front_url ? (
+                                    <img
+                                        className="wdm-media-img wdm-zoomable"
+                                        src={worker.cnic_front_url}
+                                        alt="CNIC Front"
+                                        loading="lazy"
+                                        onClick={() => setZoomedImg(worker.cnic_front_url)}
+                                    />
+                                ) : (
+                                    <div className="wdm-media-placeholder">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="16" rx="2" ry="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                        No front image
+                                    </div>
+                                )}
                             </div>
-                        )}
+                            <div className="wdm-media-section">
+                                <span className="wdm-media-label">CNIC Back</span>
+                                {worker.cnic_back_url ? (
+                                    <img
+                                        className="wdm-media-img wdm-zoomable"
+                                        src={worker.cnic_back_url}
+                                        alt="CNIC Back"
+                                        loading="lazy"
+                                        onClick={() => setZoomedImg(worker.cnic_back_url)}
+                                    />
+                                ) : (
+                                    <div className="wdm-media-placeholder">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="4" width="18" height="16" rx="2" ry="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                        No back image
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     {/* Rejection reason (if rejected) */}
@@ -145,6 +190,14 @@ export default function WorkerDetailModal({ worker, onClose, onApprove, onReject
                     </button>
                 </div>
             </div>
+
+            {/* Zoomed Image Overlay */}
+            {zoomedImg && (
+                <div className="wdm-zoom-overlay" onClick={() => setZoomedImg(null)}>
+                    <div className="wdm-zoom-close" title="Close">×</div>
+                    <img src={zoomedImg} alt="Zoomed view" className="wdm-zoomed-img" onClick={(e) => e.stopPropagation()} />
+                </div>
+            )}
         </div>
     );
 }
