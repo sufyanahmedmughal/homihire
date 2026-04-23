@@ -2,22 +2,23 @@ import { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import WorkerDetailModal from '../components/WorkerDetailModal';
 import ApproveRejectModal from '../components/ApproveRejectModal';
-import { getWorkers, blockWorker, approveWorker, rejectWorker } from '../services/adminService';
+import { getWorkers, getWorkerById, blockWorker, approveWorker, rejectWorker } from '../services/adminService';
 import { showToast } from '../components/Toast';
 import './ListPage.css';
 
 const SKILLS = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Building / Construction', 'Repairing / Maintenance'];
 
 export default function WorkersListPage() {
-    const [workers,      setWorkers]      = useState([]);
-    const [loading,      setLoading]      = useState(true);
-    const [loadingMore,  setLoadingMore]  = useState(false);
-    const [hasMore,      setHasMore]      = useState(false);
-    const [nextCursor,   setNextCursor]   = useState(null);
+    const [workers, setWorkers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [nextCursor, setNextCursor] = useState(null);
     const [statusFilter, setStatusFilter] = useState('');
-    const [skillFilter,  setSkillFilter]  = useState('');
-    const [viewWorker,   setViewWorker]   = useState(null);
-    const [actionModal,  setActionModal]  = useState(null); // { mode, worker }
+    const [skillFilter, setSkillFilter] = useState('');
+    const [viewWorker, setViewWorker] = useState(null);
+    const [viewLoading, setViewLoading] = useState(false);
+    const [actionModal, setActionModal] = useState(null); // { mode, worker }
 
     /* ── Load ── */
     const load = useCallback(async (cursor = null, st = statusFilter, sk = skillFilter) => {
@@ -35,6 +36,20 @@ export default function WorkersListPage() {
             setLoadingMore(false);
         }
     }, [statusFilter, skillFilter]);
+
+    /* ── View full worker details (fetches rejection_reason etc.) ── */
+    const handleViewWorker = async (w) => {
+        setViewLoading(true);
+        try {
+            const full = await getWorkerById(w._id);
+            setViewWorker(full);
+        } catch {
+            // fallback to list data if individual fetch fails
+            setViewWorker(w);
+        } finally {
+            setViewLoading(false);
+        }
+    };
 
     useEffect(() => { load(null, statusFilter, skillFilter); }, [statusFilter, skillFilter]);
 
@@ -71,10 +86,10 @@ export default function WorkersListPage() {
         date ? new Date(date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
     const getConfirmHandler = () => {
-        if (actionModal?.mode === 'approve')       return handleApproveConfirm;
-        if (actionModal?.mode === 'reject')        return handleRejectConfirm;
-        if (actionModal?.mode === 'block-worker')  return handleBlockConfirm;
-        return () => {};
+        if (actionModal?.mode === 'approve') return handleApproveConfirm;
+        if (actionModal?.mode === 'reject') return handleRejectConfirm;
+        if (actionModal?.mode === 'block-worker') return handleBlockConfirm;
+        return () => { };
     };
 
     return (
@@ -117,7 +132,7 @@ export default function WorkersListPage() {
                 <div className="list-table-wrap">
                     {loading ? (
                         <div className="list-loading-rows">
-                            {[1,2,3,4,5,6].map(i => <div key={i} className="list-skeleton-row" />)}
+                            {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="list-skeleton-row" />)}
                         </div>
                     ) : workers.length === 0 ? (
                         <div className="list-empty">No workers found matching your filters.</div>
@@ -173,6 +188,19 @@ export default function WorkersListPage() {
                                             <span className={`list-badge ${w.status}`}>
                                                 {w.status}
                                             </span>
+                                            {w.status === 'rejected' && w.rejection_reason && (
+                                                <div style={{
+                                                    marginTop: '4px',
+                                                    fontSize: '11px',
+                                                    color: 'var(--accent-red, #f87171)',
+                                                    maxWidth: '160px',
+                                                    lineHeight: '1.4',
+                                                    opacity: 0.85,
+                                                    wordBreak: 'break-word',
+                                                }}>
+                                                    ⚠ {w.rejection_reason}
+                                                </div>
+                                            )}
                                         </td>
                                         <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{fmt(w.registered_at)}</td>
                                         <td>
@@ -180,9 +208,10 @@ export default function WorkersListPage() {
                                                 <button
                                                     id={`workers-view-${w._id}`}
                                                     className="list-btn list-btn-view"
-                                                    onClick={() => setViewWorker(w)}
+                                                    onClick={() => handleViewWorker(w)}
+                                                    disabled={viewLoading}
                                                 >
-                                                    View
+                                                    {viewLoading ? '…' : 'View'}
                                                 </button>
                                                 {w.status === 'pending' && (
                                                     <button
@@ -233,11 +262,11 @@ export default function WorkersListPage() {
             {/* Worker Detail Modal */}
             {viewWorker && (
                 <WorkerDetailModal
-                    worker={workers.find(w => w._id === viewWorker._id) || viewWorker}
+                    worker={viewWorker}
                     onClose={() => setViewWorker(null)}
-                    onApprove={(w) => setActionModal({ mode: 'approve',      worker: w })}
-                    onReject={(w)  => setActionModal({ mode: 'reject',       worker: w })}
-                    onBlock={(w)   => setActionModal({ mode: 'block-worker', worker: w })}
+                    onApprove={(w) => setActionModal({ mode: 'approve', worker: w })}
+                    onReject={(w) => setActionModal({ mode: 'reject', worker: w })}
+                    onBlock={(w) => setActionModal({ mode: 'block-worker', worker: w })}
                 />
             )}
 
