@@ -37,7 +37,7 @@ const getPendingWorkers = async (req, res) => {
         const workers = await Worker.find(query)
             .sort({ _id: -1 })
             .limit(limit + 1) // +1 trick
-            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee location status createdAt admin_note');
+            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee location status rejection_reason createdAt admin_note');
 
         const { items, hasMore, nextCursor } = paginateResult(workers, limit);
 
@@ -57,6 +57,7 @@ const getPendingWorkers = async (req, res) => {
                 lng: w.location?.coordinates[0],
             },
             status: w.status,
+            rejection_reason: w.rejection_reason,
             registered_at: w.createdAt,
         }));
 
@@ -469,7 +470,7 @@ const getAllWorkers = async (req, res) => {
         const workers = await Worker.find(query)
             .sort({ _id: -1 })
             .limit(limit + 1)
-            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee status rating total_jobs is_available createdAt');
+            .select('name cnic phone selfie_url cnic_front_url cnic_back_url skills fee status rejection_reason rating total_jobs is_available createdAt');
 
         const { items, hasMore, nextCursor } = paginateResult(workers, limit);
 
@@ -486,6 +487,7 @@ const getAllWorkers = async (req, res) => {
                 skills: w.skills,
                 fee: w.fee,
                 status: w.status,
+                rejection_reason: w.rejection_reason,
                 rating: w.rating,
                 total_jobs: w.total_jobs,
                 is_available: w.is_available,

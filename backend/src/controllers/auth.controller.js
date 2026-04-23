@@ -500,6 +500,134 @@ const getWorkerProfile = async (req, res) => {
     }
 };
 
+// ─────────────────────────────────────────────────────────────────────
+// WORKER RE-APPLY — Firebase Phone Auth Flow
+//
+// PUT /api/auth/worker/reapply
+//
+// Only workers with status='rejected' can call this.
+// Verifies firebase_id_token → finds worker by phone → updates all
+// submitted fields → resets status to 'pending', clears rejection_reason.
+// No JWT issued — worker must wait for admin approval again.
+// ─────────────────────────────────────────────────────────────────────
+const workerReapply = async (req, res) => {
+    const ip = req.ip || req.socket?.remoteAddress;
+    try {
+        let { firebase_id_token, name, cnic, phone, selfie_url, cnic_front_url, cnic_back_url, skills, fee, location } = req.body;
+
+        // Parse skills if sent as JSON string (e.g. from form-data)
+        if (typeof skills === 'string') {
+            try { skills = JSON.parse(skills); } catch { skills = [skills]; }
+        }
+
+        // ── Input validation (identical to registration) ───────────
+        const errors = [];
+        if (!firebase_id_token) errors.push('firebase_id_token is required');
+        if (!isValidName(name)) errors.push('Name must be 3-100 characters (letters, spaces, dots only)');
+        if (!isValidCNIC(cnic)) errors.push('CNIC must be in format: XXXXX-XXXXXXX-X');
+        if (!isValidPhone(phone)) errors.push('Phone must be a valid Pakistani number (e.g. 03001234567)');
+        if (!isValidSkills(skills)) errors.push('Skills must be valid categories: Cleaning, Plumbing, Electrical, Carpentry, Building / Construction, Repairing / Maintenance');
+        if (!isValidFee(fee)) errors.push('Fee must be between 100 and 999,999 PKR');
+        if (!location || typeof location.lat === 'undefined') errors.push('Location with lat and lng is required');
+        else if (!isValidCoordinates(Number(location.lat), Number(location.lng))) errors.push('Invalid location coordinates');
+        if (selfie_url && !isValidCloudinaryUrl(selfie_url)) errors.push('selfie_url must be a valid Cloudinary URL');
+        if (cnic_front_url && !isValidCloudinaryUrl(cnic_front_url)) errors.push('cnic_front_url must be a valid Cloudinary URL');
+        if (cnic_back_url && !isValidCloudinaryUrl(cnic_back_url)) errors.push('cnic_back_url must be a valid Cloudinary URL');
+
+        if (errors.length > 0) {
+            return res.status(400).json({ success: false, message: errors[0], errors });
+        }
+
+        // ── Verify Firebase ID Token ───────────────────────────────
+        let decoded;
+        try {
+            decoded = await verifyFirebaseToken(firebase_id_token);
+        } catch (err) {
+            logAuthEvent({ phone, action: 'reapply', ip, status: 'fail', role: 'worker', details: err.message });
+            return res.status(401).json({ success: false, message: err.message });
+        }
+
+        // ── Match phone numbers ────────────────────────────────────
+        const firebasePhone = convertFirebasePhoneToPakistani(decoded.phone_number);
+        if (firebasePhone !== phone) {
+            return res.status(401).json({
+                success: false,
+                message: 'Phone number mismatch. The verified number does not match the phone provided.',
+            });
+        }
+
+        // ── Find existing worker by phone ──────────────────────────
+        const worker = await Worker.findOne({ phone });
+        if (!worker) {
+            return res.status(404).json({
+                success: false,
+                message: 'No worker account found with this phone number. Please register instead.',
+            });
+        }
+
+        // ── Only rejected workers can re-apply ─────────────────────
+        if (worker.status !== 'rejected') {
+            return res.status(400).json({
+                success: false,
+                message: `Re-application is only allowed for rejected accounts. Current status: '${worker.status}'.`,
+            });
+        }
+
+        // ── CNIC uniqueness — ensure new CNIC isn't taken by another worker ──
+        if (cnic !== worker.cnic) {
+            const cnicTaken = await Worker.findOne({ cnic, _id: { $ne: worker._id } });
+            if (cnicTaken) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'A worker with this CNIC is already registered.',
+                });
+            }
+        }
+
+        // ── Update all fields + reset status ──────────────────────
+        worker.name             = name.trim();
+        worker.cnic             = cnic;
+        worker.selfie_url       = selfie_url       || worker.selfie_url;
+        worker.cnic_front_url   = cnic_front_url   || worker.cnic_front_url;
+        worker.cnic_back_url    = cnic_back_url    || worker.cnic_back_url;
+        worker.skills           = skills;
+        worker.fee              = Number(fee);
+        worker.location         = {
+            type: 'Point',
+            coordinates: [Number(location.lng), Number(location.lat)],
+        };
+        worker.firebase_uid             = decoded.uid;  // refresh in case Firebase UID rotated
+        worker.firebase_phone_verified  = true;
+        worker.status           = 'pending';
+        worker.rejection_reason = null;
+        worker.is_available     = false;
+
+        await worker.save();
+
+        logAuthEvent({ user_id: worker._id, phone, action: 'reapply', ip, status: 'success', role: 'worker' });
+
+        // ── No JWT — worker must wait for admin approval again ─────
+        res.status(200).json({
+            success: true,
+            message: 'Re-application submitted successfully. Awaiting admin approval. You will be notified once reviewed.',
+            worker: {
+                _id: worker._id,
+                status: worker.status,
+            },
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            const field = Object.keys(error.keyValue || {})[0];
+            const msg = field === 'cnic'
+                ? 'A worker with this CNIC is already registered.'
+                : 'Phone already registered.';
+            return res.status(409).json({ success: false, message: msg });
+        }
+        console.error('[workerReapply]', error.message);
+        res.status(500).json({ success: false, message: 'Re-application failed. Please try again.' });
+    }
+};
+
 module.exports = {
     verifyUserFirebaseToken,
     verifyWorkerFirebaseToken,
@@ -507,4 +635,5 @@ module.exports = {
     loginAdmin,
     getUserProfile,
     getWorkerProfile,
+    workerReapply,
 };
