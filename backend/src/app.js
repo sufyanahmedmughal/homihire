@@ -46,12 +46,8 @@ app.use(cors(corsOptions));
 
 // ─────────────────────────────────────────────
 // PREFLIGHT — OPTIONS must respond BEFORE rate limiters
-// Browser sends OPTIONS before every cross-origin request.
-// If the rate limiter runs first it can 429/502 the preflight,
-// which the browser reports as "Unable to connect to server".
-// Returning a clean 204 here bypasses all middleware for OPTIONS.
 // ─────────────────────────────────────────────
-app.options('*', cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
 
 // ─────────────────────────────────────────────
 // GLOBAL RATE LIMITER — runs AFTER preflight is handled
