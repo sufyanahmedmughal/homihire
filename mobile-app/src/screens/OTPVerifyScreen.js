@@ -112,6 +112,27 @@ export default function OTPVerifyScreen({ navigation, route }) {
     }
   };
 
+  // Helper — extracts token & profile from multiple backend response shapes
+  // Handles: { token } | { data.token } | { accessToken } | { jwt } | { access_token } etc.
+  const extractSession = (data) => {
+    const token =
+      data?.token        ??
+      data?.accessToken  ??
+      data?.access_token ??
+      data?.jwt          ??
+      data?.bearer       ??
+      data?.data?.token  ??
+      data?.data?.accessToken ??
+      data?.data?.access_token;
+
+    const profile =
+      data?.worker  ?? data?.data?.worker  ??
+      data?.user    ?? data?.data?.user    ??
+      data?.profile ?? data?.data?.profile ?? {};
+
+    return { token, profile };
+  };
+
   const verifyOTP = async (otpCode) => {
     if (!confirmation) {
       setError('OTP not sent yet. Please wait.');
@@ -125,43 +146,47 @@ export default function OTPVerifyScreen({ navigation, route }) {
       // After verification — call appropriate registration/login API
       if (flow === 'userRegister') {
         const data = await registerUser({ firebase_id_token: firebaseIdToken, ...registrationData });
-        await login({ token: data.token, role: 'user', profile: data.user });
+        const { token, profile } = extractSession(data);
+        await login({ token, role: 'user', profile });
         navigation.reset({ index: 0, routes: [{ name: 'UserHome' }] });
 
       } else if (flow === 'workerRegister') {
         const data = await registerWorker({ firebase_id_token: firebaseIdToken, ...registrationData });
+        // 🔍 DEBUG: log raw response so we can identify the exact key names
+        console.log('[OTPVerify] workerRegister raw response keys:', Object.keys(data || {}));
+        console.log('[OTPVerify] workerRegister data:', JSON.stringify(data, null, 2));
+        const { token: wToken, profile: wProfile } = extractSession(data);
+        console.log('[OTPVerify] extracted token:', wToken ? wToken.substring(0, 20) + '...' : 'UNDEFINED — check response shape above');
+        if (wToken) await login({ token: wToken, role: 'worker', profile: wProfile });
         navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
 
       } else if (flow === 'workerReapply') {
         // Rejected worker re-applying — calls PUT /api/auth/worker/reapply
-        // Backend updates existing record and resets status to 'pending'
-        await reapplyWorker({ firebase_id_token: firebaseIdToken, ...registrationData });
+        const data = await reapplyWorker({ firebase_id_token: firebaseIdToken, ...registrationData });
+        console.log('[OTPVerify] workerReapply raw response keys:', Object.keys(data || {}));
+        const { token: rToken, profile: rProfile } = extractSession(data);
+        if (rToken) await login({ token: rToken, role: 'worker', profile: rProfile });
         navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
 
       } else if (flow === 'login') {
         const data = await loginWithFirebase({ firebase_id_token: firebaseIdToken, phone });
+        const { token: lToken, profile: lProfile } = extractSession(data);
+        // Use top-level profile field first (login endpoint may use data.profile)
+        const workerProfile = data.profile ?? lProfile;
 
         if (data.role === 'user') {
-          await login({ token: data.token, role: data.role, profile: data.profile });
+          await login({ token: lToken || data.token, role: data.role, profile: workerProfile });
           navigation.reset({ index: 0, routes: [{ name: 'UserHome' }] });
         } else if (data.role === 'worker') {
-          if (data.profile?.status === 'pending') {
-            // Store session so PendingApproval screen has auth context
-            await login({ token: data.token, role: data.role, profile: data.profile });
+          await login({ token: lToken || data.token, role: data.role, profile: workerProfile });
+          if (workerProfile?.status === 'pending') {
             navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
-          } else if (data.profile?.status === 'rejected') {
-            // Do NOT call login() — keep isAuthenticated=false so that
-            // when the user taps "Re-apply", navigation.reset to WorkerRegister
-            // is not overridden by AppNavigator's getInitialRoute().
+          } else if (workerProfile?.status === 'rejected') {
             navigation.reset({
               index: 0,
-              routes: [{
-                name: 'Rejected',
-                params: { rejection_reason: data.profile?.rejection_reason },
-              }],
+              routes: [{ name: 'Rejected', params: { rejection_reason: workerProfile?.rejection_reason } }],
             });
           } else {
-            await login({ token: data.token, role: data.role, profile: data.profile });
             navigation.reset({ index: 0, routes: [{ name: 'WorkerHome' }] });
           }
         }
@@ -185,13 +210,31 @@ export default function OTPVerifyScreen({ navigation, route }) {
 
       if (isFirebaseError) {
         setError(getFirebaseErrorMessage(err.code));
+      } else if (!err.response) {
+        // No HTTP response — either a JS error (AsyncStorage, undefined) or a real network error
+        const isJsError = err.message?.includes('AsyncStorage')
+          || err.message?.includes('undefined')
+          || err.message?.includes('null');
+
+        if (isJsError && (flow === 'workerRegister' || flow === 'workerReapply')) {
+          // Backend likely registered the worker but token handling crashed locally.
+          // Navigate to PendingApproval — worker can log in later.
+          navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
+          return;
+        }
+        setError('Cannot reach server. Please check your internet connection and try again.');
       } else {
-        // API / network errors — backend returns { success, message, errors? }
+        // HTTP error — backend returned a response
         const status = err.response?.status;
         const apiMsg = err.response?.data?.message;
         const apiErrors = err.response?.data?.errors;
 
-        if (status === 400) {
+        if (status === 409 && (flow === 'workerRegister' || flow === 'workerReapply')) {
+          // Worker was registered on a previous attempt (first call succeeded, second call is duplicate).
+          // Redirect to Login so they can authenticate with the existing account.
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+          return;
+        } else if (status === 400) {
           setError(apiMsg || (apiErrors && apiErrors[0]) || 'Invalid data. Please check your details.');
         } else if (status === 401) {
           setError(apiMsg || 'Authentication failed. Please try again.');
@@ -199,14 +242,11 @@ export default function OTPVerifyScreen({ navigation, route }) {
           setError(apiMsg || 'Phone already registered. Please login instead.');
         } else if (status === 403) {
           const msgLower = (apiMsg || '').toLowerCase();
-          const rejectionReason = err.response?.data?.rejection_reason || err.response?.data?.data?.rejection_reason;
-
+          const rejectionReason = err.response?.data?.rejection_reason
+            || err.response?.data?.data?.rejection_reason;
           if (msgLower.includes('under review') || msgLower.includes('pending')) {
-            // Worker is pending approval
             navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
           } else if (msgLower.includes('reject')) {
-            // Worker account has been rejected — navigate to RejectedScreen
-            // Do NOT call login() so Re-apply navigation works correctly
             navigation.reset({
               index: 0,
               routes: [{
@@ -219,9 +259,6 @@ export default function OTPVerifyScreen({ navigation, route }) {
           }
         } else if (status === 404) {
           setError(apiMsg || 'Phone not registered. Please sign up.');
-        } else if (!err.response) {
-          // Network error — server unreachable
-          setError('Cannot reach server. Please check your internet connection and try again.');
         } else {
           setError(apiMsg || 'Verification failed. Please try again.');
         }

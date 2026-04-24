@@ -171,4 +171,17 @@ export const uploadToCloudinary = async (imageUri, folder = 'avatars') => {
 };
 
 
+/**
+ * Register FCM push token for the currently logged-in worker.
+ * Backend: PUT /api/auth/worker/update-fcm-token
+ * Body: { fcm_token: string }
+ */
+export const updateFcmToken = async (fcmToken) => {
+  const response = await api.put('/api/auth/worker/update-fcm-token', {
+    fcm_token: fcmToken,
+  });
+  return response.data;
+};
+
 export default api;
+
