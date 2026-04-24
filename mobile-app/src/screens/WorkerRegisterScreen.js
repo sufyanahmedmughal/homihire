@@ -24,7 +24,9 @@ const SKILL_CATEGORIES = [
   { id: 'Repairing / Maintenance', label: '🔨 Repairing' },
 ];
 
-export default function WorkerRegisterScreen({ navigation }) {
+export default function WorkerRegisterScreen({ navigation, route }) {
+  // isReapply = true when coming from RejectedScreen → use reapply endpoint
+  const isReapply = route?.params?.isReapply === true;
   const [form, setForm] = useState({
     name: '',
     cnic: '',
@@ -32,33 +34,31 @@ export default function WorkerRegisterScreen({ navigation }) {
     fee: '',
   });
   const [errors, setErrors] = useState({});
+
+  // ─── Local images (NOT yet uploaded) ──────────────────────────────────────
   const [selfieImage, setSelfieImage] = useState(null);
-  const [selfieUrl, setSelfieUrl] = useState(null);
   const [cnicFrontImage, setCnicFrontImage] = useState(null);
-  const [cnicFrontUrl, setCnicFrontUrl] = useState(null);
   const [cnicBackImage, setCnicBackImage] = useState(null);
-  const [cnicBackUrl, setCnicBackUrl] = useState(null);
+
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [location, setLocation] = useState(null);
   const [locationText, setLocationText] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadingCnicFront, setUploadingCnicFront] = useState(false);
-  const [uploadingCnicBack, setUploadingCnicBack] = useState(false);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
+  // ─── Submitting state (uploading + navigating) ─────────────────────────────
+  const [submitting, setSubmitting] = useState(false);
+
   // CNIC OCR state
   const [scanningCnic, setScanningCnic] = useState(false);
-  const [autoDetectedFields, setAutoDetectedFields] = useState({}); // { name: true, cnic: true }
+  const [autoDetectedFields, setAutoDetectedFields] = useState({});
 
-  // Camera modal state
+  // Camera / Crop modal state
   const [cameraVisible, setCameraVisible] = useState(false);
-
-  // Crop modal state
   const [cropVisible, setCropVisible] = useState(false);
   const [cropImageUri, setCropImageUri] = useState(null);
   const [cropTarget, setCropTarget] = useState(null); // 'cnic_front' | 'cnic_back'
-  const [cameraMode, setCameraMode] = useState('selfie'); // 'selfie' | 'cnic_front' | 'cnic_back'
+  const [cameraMode, setCameraMode] = useState('selfie');
 
   const openCamera = (mode) => {
     setCameraMode(mode);
@@ -82,41 +82,32 @@ export default function WorkerRegisterScreen({ navigation }) {
     else if (!isValidPakistaniPhone(form.phone.trim())) newErrors.phone = 'Format: 03XXXXXXXXX';
     if (!form.fee.trim()) newErrors.fee = 'Daily fee is required';
     else if (isNaN(Number(form.fee)) || Number(form.fee) <= 0) newErrors.fee = 'Enter a valid fee';
-    if (!selfieUrl) newErrors.selfie = 'Live selfie is required';
-    if (!cnicFrontUrl) newErrors.cnicFront = 'CNIC front photo is required';
-    if (!cnicBackUrl) newErrors.cnicBack = 'CNIC back photo is required';
+    if (!selfieImage) newErrors.selfie = 'Live selfie is required';
+    if (!cnicFrontImage) newErrors.cnicFront = 'CNIC front photo is required';
+    if (!cnicBackImage) newErrors.cnicBack = 'CNIC back photo is required';
     if (selectedSkills.length === 0) newErrors.skills = 'Select at least one skill';
     if (!location) newErrors.location = 'Location is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // ─── Camera capture handler ────────────────────────────────────────────────
   const handleCameraCapture = async (uri) => {
     setCameraVisible(false);
 
     if (cameraMode === 'selfie') {
-      // Selfie — upload directly, no crop needed
+      // Store locally — no upload yet
       setSelfieImage(uri);
-      setUploadingImage(true);
-      try {
-        const url = await uploadToCloudinary(uri, 'selfies');
-        setSelfieUrl(url);
-        setErrors((e) => ({ ...e, selfie: null }));
-      } catch {
-        Alert.alert('Upload Failed', 'Could not upload selfie. Try again.');
-        setSelfieImage(null);
-      } finally {
-        setUploadingImage(false);
-      }
+      setErrors((e) => ({ ...e, selfie: null }));
     } else if (cameraMode === 'cnic_front' || cameraMode === 'cnic_back') {
-      // CNIC front/back — open crop modal first
+      // CNIC — open crop modal first
       setCropImageUri(uri);
       setCropTarget(cameraMode);
       setCropVisible(true);
     }
   };
 
-  // Called after user crops (or skips crop) for CNIC images
+  // ─── Crop complete handler ─────────────────────────────────────────────────
   const handleCropComplete = async (croppedUri) => {
     setCropVisible(false);
     const target = cropTarget;
@@ -125,19 +116,13 @@ export default function WorkerRegisterScreen({ navigation }) {
 
     if (target === 'cnic_front') {
       setCnicFrontImage(croppedUri);
-      setUploadingCnicFront(true);
+      setErrors((e) => ({ ...e, cnicFront: null }));
+
+      // Run OCR only (no upload) so we can auto-fill fields
       setScanningCnic(true);
       setAutoDetectedFields({});
       try {
-        // Run OCR + upload in parallel
-        const [url, ocrData] = await Promise.all([
-          uploadToCloudinary(croppedUri, 'cnic'),
-          extractCNICData(croppedUri),
-        ]);
-        setCnicFrontUrl(url);
-        setErrors((e) => ({ ...e, cnicFront: null }));
-
-        // Auto-fill detected fields
+        const ocrData = await extractCNICData(croppedUri);
         const detected = {};
         if (ocrData?.name && !form.name.trim()) {
           setForm((f) => ({ ...f, name: ocrData.name }));
@@ -153,51 +138,36 @@ export default function WorkerRegisterScreen({ navigation }) {
           setAutoDetectedFields(detected);
         }
       } catch {
-        Alert.alert('Upload Failed', 'Could not upload CNIC front. Try again.');
-        setCnicFrontImage(null);
+        // OCR failure is non-critical — user can fill fields manually
       } finally {
-        setUploadingCnicFront(false);
         setScanningCnic(false);
       }
     } else if (target === 'cnic_back') {
+      // Store locally — no upload yet
       setCnicBackImage(croppedUri);
-      setUploadingCnicBack(true);
-      try {
-        const url = await uploadToCloudinary(croppedUri, 'cnic');
-        setCnicBackUrl(url);
-        setErrors((e) => ({ ...e, cnicBack: null }));
-      } catch {
-        Alert.alert('Upload Failed', 'Could not upload CNIC back. Try again.');
-        setCnicBackImage(null);
-      } finally {
-        setUploadingCnicBack(false);
-      }
+      setErrors((e) => ({ ...e, cnicBack: null }));
     }
   };
 
   // Called when user cancels crop — use original uncropped image
   const handleCropCancel = () => {
     const uri = cropImageUri;
-    // Use original image without cropping
     handleCropComplete(uri);
   };
 
   const handleRetakeSelfie = () => {
     setSelfieImage(null);
-    setSelfieUrl(null);
     openCamera('selfie');
   };
 
   const handleRetakeCnicFront = () => {
     setCnicFrontImage(null);
-    setCnicFrontUrl(null);
     setAutoDetectedFields({});
     openCamera('cnic_front');
   };
 
   const handleRetakeCnicBack = () => {
     setCnicBackImage(null);
-    setCnicBackUrl(null);
     openCamera('cnic_back');
   };
 
@@ -227,24 +197,42 @@ export default function WorkerRegisterScreen({ navigation }) {
     }
   };
 
-  const handleNext = () => {
+  // ─── Submit: validate → upload all images → navigate ──────────────────────
+  const handleNext = async () => {
     setGlobalError('');
     if (!validate()) return;
-    navigation.navigate('OTPVerify', {
-      flow: 'workerRegister',
-      phone: form.phone.trim(),
-      registrationData: {
-        name: form.name.trim(),
-        cnic: form.cnic.trim(),
+
+    setSubmitting(true);
+    try {
+      // Upload all three images in parallel — only when profile is complete
+      const [selfieUrl, cnicFrontUrl, cnicBackUrl] = await Promise.all([
+        uploadToCloudinary(selfieImage, 'selfies'),
+        uploadToCloudinary(cnicFrontImage, 'cnic'),
+        uploadToCloudinary(cnicBackImage, 'cnic'),
+      ]);
+
+      navigation.navigate('OTPVerify', {
+        // Use 'workerReapply' flow for rejected workers so the correct
+        // API endpoint (PUT /reapply) is called instead of POST /register
+        flow: isReapply ? 'workerReapply' : 'workerRegister',
         phone: form.phone.trim(),
-        selfie_url: selfieUrl,
-        cnic_front_url: cnicFrontUrl,
-        cnic_back_url: cnicBackUrl,
-        skills: selectedSkills,
-        fee: Number(form.fee),
-        location,
-      },
-    });
+        registrationData: {
+          name: form.name.trim(),
+          cnic: form.cnic.trim(),
+          phone: form.phone.trim(),
+          selfie_url: selfieUrl,
+          cnic_front_url: cnicFrontUrl,
+          cnic_back_url: cnicBackUrl,
+          skills: selectedSkills,
+          fee: Number(form.fee),
+          location,
+        },
+      });
+    } catch (err) {
+      setGlobalError('Image upload failed. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Camera config based on mode
@@ -262,7 +250,7 @@ export default function WorkerRegisterScreen({ navigation }) {
   };
 
   const camConfig = getCameraConfig();
-  const isUploading = uploadingImage || uploadingCnicFront || uploadingCnicBack || scanningCnic;
+  const isBusy = submitting || fetchingLocation || scanningCnic;
 
   return (
     <View style={styles.container}>
@@ -286,8 +274,17 @@ export default function WorkerRegisterScreen({ navigation }) {
         onCrop={handleCropComplete}
         onCancel={handleCropCancel}
         title={cropTarget === 'cnic_front' ? 'Crop CNIC Front' : 'Crop CNIC Back'}
-        aspectRatio={1.585}  
+        aspectRatio={1.585}
       />
+
+      {/* Full-screen upload overlay while submitting */}
+      {submitting && (
+        <View style={styles.submitOverlay}>
+          <ActivityIndicator color={COLORS.primary} size="large" />
+          <Text style={styles.submitOverlayText}>Uploading photos…</Text>
+          <Text style={styles.submitOverlayHint}>Please wait, do not close the app</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
@@ -296,10 +293,20 @@ export default function WorkerRegisterScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           <ScreenHeader
-            title="Worker Registration"
-            subtitle="Join homiHire as a service professional"
+            title={isReapply ? 'Re-apply as Worker' : 'Worker Registration'}
+            subtitle={isReapply ? 'Update your details and re-submit for review' : 'Join homiHire as a service professional'}
             onBack={() => navigation.goBack()}
           />
+
+          {/* Re-apply notice banner */}
+          {isReapply && (
+            <View style={styles.reapplyBanner}>
+              <Text style={styles.reapplyBannerIcon}>🔄</Text>
+              <Text style={styles.reapplyBannerText}>
+                You are re-applying. Update any incorrect info and submit again for admin review.
+              </Text>
+            </View>
+          )}
 
           {globalError ? <ErrorMessage message={globalError} /> : null}
 
@@ -312,23 +319,23 @@ export default function WorkerRegisterScreen({ navigation }) {
             </View>
           </View>
 
+          {/* Upload-on-submit info banner */}
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoBannerIcon}>🔒</Text>
+            <Text style={styles.infoBannerText}>
+              Photos are uploaded securely only when you complete and submit this form.
+            </Text>
+          </View>
+
           {/* ─── 1. LIVE SELFIE ──────────────────────────────────────── */}
           <SectionTitle text="LIVE SELFIE VERIFICATION" />
           {selfieImage ? (
             <View style={styles.capturedContainer}>
               <Image source={{ uri: selfieImage }} style={styles.capturedImage} />
-              {uploadingImage && (
-                <View style={styles.uploadOverlay}>
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={styles.uploadOverlayText}>Uploading...</Text>
-                </View>
-              )}
-              {selfieUrl && !uploadingImage && (
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedIcon}>✓</Text>
-                  <Text style={styles.verifiedText}>Selfie verified</Text>
-                </View>
-              )}
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedIcon}>✓</Text>
+                <Text style={styles.verifiedText}>Selfie captured (uploads on submit)</Text>
+              </View>
               <TouchableOpacity onPress={handleRetakeSelfie} style={styles.retakeBtn} activeOpacity={0.8}>
                 <Text style={styles.retakeBtnText}>🔄 Retake Selfie</Text>
               </TouchableOpacity>
@@ -363,16 +370,9 @@ export default function WorkerRegisterScreen({ navigation }) {
               {cnicFrontImage ? (
                 <View style={styles.cnicCapturedWrap}>
                   <Image source={{ uri: cnicFrontImage }} style={styles.cnicImage} />
-                  {uploadingCnicFront && (
-                    <View style={styles.cnicUploadOverlay}>
-                      <ActivityIndicator color="#fff" size="small" />
-                    </View>
-                  )}
-                  {cnicFrontUrl && !uploadingCnicFront && (
-                    <View style={styles.cnicCheck}>
-                      <Text style={styles.cnicCheckText}>✓</Text>
-                    </View>
-                  )}
+                  <View style={styles.cnicCheck}>
+                    <Text style={styles.cnicCheckText}>✓</Text>
+                  </View>
                   <TouchableOpacity onPress={handleRetakeCnicFront} style={styles.cnicRetake}>
                     <Text style={styles.cnicRetakeText}>Retake</Text>
                   </TouchableOpacity>
@@ -396,16 +396,9 @@ export default function WorkerRegisterScreen({ navigation }) {
               {cnicBackImage ? (
                 <View style={styles.cnicCapturedWrap}>
                   <Image source={{ uri: cnicBackImage }} style={styles.cnicImage} />
-                  {uploadingCnicBack && (
-                    <View style={styles.cnicUploadOverlay}>
-                      <ActivityIndicator color="#fff" size="small" />
-                    </View>
-                  )}
-                  {cnicBackUrl && !uploadingCnicBack && (
-                    <View style={styles.cnicCheck}>
-                      <Text style={styles.cnicCheckText}>✓</Text>
-                    </View>
-                  )}
+                  <View style={styles.cnicCheck}>
+                    <Text style={styles.cnicCheckText}>✓</Text>
+                  </View>
                   <TouchableOpacity onPress={handleRetakeCnicBack} style={styles.cnicRetake}>
                     <Text style={styles.cnicRetakeText}>Retake</Text>
                   </TouchableOpacity>
@@ -424,7 +417,7 @@ export default function WorkerRegisterScreen({ navigation }) {
             </View>
           </View>
 
-          {/* CNIC Scanning status */}
+          {/* CNIC Scanning status (OCR only — no upload) */}
           {scanningCnic && (
             <View style={styles.ocrBanner}>
               <ActivityIndicator color={COLORS.primary} size="small" />
@@ -505,9 +498,9 @@ export default function WorkerRegisterScreen({ navigation }) {
           {errors.location && <Text style={styles.fieldError}>{errors.location}</Text>}
 
           <PrimaryButton
-            title="Send OTP & Continue"
+            title={submitting ? 'Uploading & Sending OTP…' : 'Send OTP & Continue'}
             onPress={handleNext}
-            disabled={isUploading || fetchingLocation}
+            disabled={isBusy}
             style={{ marginTop: SPACING['3xl'] }}
           />
 
@@ -524,13 +517,33 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scroll: { paddingHorizontal: SPACING['2xl'], paddingTop: 56, paddingBottom: SPACING['4xl'] },
 
+  // Full-screen overlay during upload-on-submit
+  submitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10,10,15,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    gap: SPACING.md,
+  },
+  submitOverlayText: {
+    color: COLORS.textPrimary,
+    fontSize: FONTS.lg,
+    fontWeight: FONTS.bold,
+    marginTop: SPACING.md,
+  },
+  submitOverlayHint: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sm,
+  },
+
   workerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.primaryMuted,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
-    marginBottom: SPACING['2xl'],
+    marginBottom: SPACING.lg,
     borderWidth: 1,
     borderColor: 'rgba(245,166,35,0.2)',
     gap: SPACING.md,
@@ -538,6 +551,48 @@ const styles = StyleSheet.create({
   workerBadgeIcon: { fontSize: 28 },
   workerBadgeTitle: { color: COLORS.primary, fontWeight: FONTS.bold, fontSize: FONTS.md },
   workerBadgeSubtitle: { color: COLORS.textSecondary, fontSize: FONTS.xs, marginTop: 2, flex: 1 },
+
+  // Re-apply banner (shown only when re-applying after rejection)
+  reapplyBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(245,166,35,0.12)',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,166,35,0.4)',
+    gap: SPACING.sm,
+  },
+  reapplyBannerIcon: { fontSize: 16, marginTop: 1 },
+  reapplyBannerText: {
+    flex: 1,
+    color: COLORS.primary,
+    fontSize: FONTS.sm,
+    lineHeight: 20,
+    fontWeight: FONTS.medium,
+  },
+
+  // Upload-on-submit info banner
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(74,158,255,0.1)',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(74,158,255,0.2)',
+    gap: SPACING.sm,
+  },
+  infoBannerIcon: { fontSize: 16, marginTop: 1 },
+  infoBannerText: {
+    flex: 1,
+    color: COLORS.info,
+    fontSize: FONTS.xs,
+    lineHeight: 18,
+    fontWeight: FONTS.medium,
+  },
 
   // Live capture picker (before capture)
   liveCapturePicker: {
@@ -611,14 +666,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: RADIUS.xl - 2,
     borderTopRightRadius: RADIUS.xl - 2,
   },
-  uploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-  },
-  uploadOverlayText: { color: '#fff', fontWeight: '600' },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -654,9 +701,7 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
     marginBottom: SPACING.xl,
   },
-  cnicCard: {
-    flex: 1,
-  },
+  cnicCard: { flex: 1 },
   cnicLabel: {
     color: COLORS.textSecondary,
     fontSize: FONTS.sm,
@@ -695,12 +740,6 @@ const styles = StyleSheet.create({
   cnicImage: {
     width: '100%',
     height: '100%',
-  },
-  cnicUploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   cnicCheck: {
     position: 'absolute',
