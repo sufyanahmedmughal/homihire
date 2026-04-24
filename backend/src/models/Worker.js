@@ -51,6 +51,14 @@ const workerSchema = new mongoose.Schema(
             type: String, // Cloudinary URL — uploaded by client BEFORE calling this API
             default: null,
         },
+        cnic_front_url: {
+            type: String, // Cloudinary URL for CNIC front image — uploaded by client
+            default: null,
+        },
+        cnic_back_url: {
+            type: String, // Cloudinary URL for CNIC back image — uploaded by client
+            default: null,
+        },
         skills: {
             type: [String],
             required: [true, 'At least one skill is required'],
@@ -141,7 +149,7 @@ const workerSchema = new mongoose.Schema(
 // Indexes — compound for geospatial + status filter (Slice 3)
 workerSchema.index({ location: '2dsphere' });
 workerSchema.index({ status: 1, is_available: 1, location: '2dsphere' });
-workerSchema.index({ firebase_uid: 1 });
+// Note: firebase_uid index is created automatically via `unique: true` on the field — no schema.index() needed
 
 const Worker = mongoose.model('Worker', workerSchema);
 
