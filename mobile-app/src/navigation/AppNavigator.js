@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { useAuth } from '../store/AuthContext';
 import { View, ActivityIndicator } from 'react-native';
 import { COLORS } from '../constants/theme';
+import { navigationRef } from './navigationRef';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -60,7 +61,7 @@ export default function AppNavigator() {
   };
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName={getInitialRoute()}
         screenOptions={screenOptions}
