@@ -38,6 +38,7 @@ const corsOptions = {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
     optionsSuccessStatus: 204, // Some browsers choke on 200 for OPTIONS
 };
 
