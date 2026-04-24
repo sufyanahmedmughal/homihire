@@ -465,7 +465,7 @@ const getAllWorkers = async (req, res) => {
         const workers = await Worker.find(query)
             .sort({ _id: -1 })
             .limit(limit + 1)
-            .select('name cnic phone selfie_url skills fee status rating total_jobs is_available createdAt');
+            .select('name cnic phone selfie_url skills fee status rating total_jobs is_available rejection_reason createdAt');
 
         const { items, hasMore, nextCursor } = paginateResult(workers, limit);
 
@@ -483,6 +483,7 @@ const getAllWorkers = async (req, res) => {
                 rating: w.rating,
                 total_jobs: w.total_jobs,
                 is_available: w.is_available,
+                rejection_reason: w.rejection_reason || null,
                 registered_at: w.createdAt,
             })),
             pagination: {
