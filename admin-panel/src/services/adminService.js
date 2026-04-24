@@ -52,6 +52,17 @@ export const getWorkers = async ({ limit = 20, cursor, status, skill } = {}) => 
 };
 
 /**
+ * GET /api/admin/workers/:id
+ * Full worker details including rejection_reason, admin_note, cnic images etc.
+ * @param {string} workerId
+ */
+export const getWorkerById = async (workerId) => {
+    const res = await api.get(`/api/admin/workers/${workerId}`);
+    // Backend returns: { success, worker: { ...all fields including rejection_reason } }
+    return res.data.worker;
+};
+
+/**
  * PUT /api/admin/workers/:id/approve
  * @param {string} workerId
  * @param {string} note
