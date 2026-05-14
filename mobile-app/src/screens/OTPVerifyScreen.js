@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { PrimaryButton, ScreenHeader, ErrorMessage } from '../components/ui';
 import { sendFirebaseOTP, verifyFirebaseOTP, getFirebaseErrorMessage, firebaseConfig, firebaseApp } from '../services/firebase';
-import { registerUser, registerWorker, loginWithFirebase } from '../services/api';
+import { registerUser, registerWorker, reapplyWorker, loginWithFirebase } from '../services/api';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { useAuth } from '../store/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -132,16 +132,36 @@ export default function OTPVerifyScreen({ navigation, route }) {
         const data = await registerWorker({ firebase_id_token: firebaseIdToken, ...registrationData });
         navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
 
+      } else if (flow === 'workerReapply') {
+        // Rejected worker re-applying — calls PUT /api/auth/worker/reapply
+        // Backend updates existing record and resets status to 'pending'
+        await reapplyWorker({ firebase_id_token: firebaseIdToken, ...registrationData });
+        navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
+
       } else if (flow === 'login') {
         const data = await loginWithFirebase({ firebase_id_token: firebaseIdToken, phone });
-        await login({ token: data.token, role: data.role, profile: data.profile });
 
         if (data.role === 'user') {
+          await login({ token: data.token, role: data.role, profile: data.profile });
           navigation.reset({ index: 0, routes: [{ name: 'UserHome' }] });
         } else if (data.role === 'worker') {
           if (data.profile?.status === 'pending') {
+            // Store session so PendingApproval screen has auth context
+            await login({ token: data.token, role: data.role, profile: data.profile });
             navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
+          } else if (data.profile?.status === 'rejected') {
+            // Do NOT call login() — keep isAuthenticated=false so that
+            // when the user taps "Re-apply", navigation.reset to WorkerRegister
+            // is not overridden by AppNavigator's getInitialRoute().
+            navigation.reset({
+              index: 0,
+              routes: [{
+                name: 'Rejected',
+                params: { rejection_reason: data.profile?.rejection_reason },
+              }],
+            });
           } else {
+            await login({ token: data.token, role: data.role, profile: data.profile });
             navigation.reset({ index: 0, routes: [{ name: 'WorkerHome' }] });
           }
         }
@@ -178,8 +198,22 @@ export default function OTPVerifyScreen({ navigation, route }) {
         } else if (status === 409) {
           setError(apiMsg || 'Phone already registered. Please login instead.');
         } else if (status === 403) {
-          if (apiMsg && apiMsg.toLowerCase().includes('under review')) {
+          const msgLower = (apiMsg || '').toLowerCase();
+          const rejectionReason = err.response?.data?.rejection_reason || err.response?.data?.data?.rejection_reason;
+
+          if (msgLower.includes('under review') || msgLower.includes('pending')) {
+            // Worker is pending approval
             navigation.reset({ index: 0, routes: [{ name: 'PendingApproval' }] });
+          } else if (msgLower.includes('reject')) {
+            // Worker account has been rejected — navigate to RejectedScreen
+            // Do NOT call login() so Re-apply navigation works correctly
+            navigation.reset({
+              index: 0,
+              routes: [{
+                name: 'Rejected',
+                params: { rejection_reason: rejectionReason || apiMsg || 'Your application did not meet our requirements.' },
+              }],
+            });
           } else {
             setError(apiMsg || 'Account not active.');
           }

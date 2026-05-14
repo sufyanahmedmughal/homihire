@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+// If VITE_API_BASE_URL is not set, we default to empty string.
+// This allows relative requests (e.g. '/api/...'), which triggers the
+// Vite dev server proxy (defined in vite.config.js) to seamlessly route
+// the requests to the backend with NO CORS restrictions!
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 const api = axios.create({
     baseURL: API_BASE_URL,
