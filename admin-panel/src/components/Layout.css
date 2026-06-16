@@ -1,0 +1,97 @@
+/* ============================================================
+   Layout — HomiHire Admin Panel (Slice 2)
+   ============================================================ */
+
+.layout-root {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-base);
+}
+
+/* Main content shifts right of sidebar */
+.layout-main {
+  flex: 1;
+  margin-left: 260px;
+  transition: margin-left var(--transition-base);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* When sidebar is collapsed */
+.layout-main.sidebar-collapsed {
+  margin-left: 72px;
+}
+
+/* Top bar */
+.layout-topbar {
+  height: 60px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  flex-shrink: 0;
+}
+
+.layout-topbar-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.layout-topbar-breadcrumb {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layout-topbar-breadcrumb span {
+  color: var(--color-primary-light);
+}
+
+.layout-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.layout-topbar-time {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.layout-status-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--color-success);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--color-success);
+  animation: orb-pulse 2s ease-in-out infinite;
+}
+
+/* Page content area */
+.layout-content {
+  flex: 1;
+  padding: var(--space-6);
+  overflow-x: hidden;
+}
+
+@media (max-width: 768px) {
+  .layout-main {
+    margin-left: 72px;
+  }
+  .layout-content {
+    padding: var(--space-4);
+  }
+}

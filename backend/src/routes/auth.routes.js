@@ -8,6 +8,7 @@ const {
     loginAdmin,
     getUserProfile,
     getWorkerProfile,
+    workerReapply,
 } = require('../controllers/auth.controller');
 
 const { authenticate, authorizeRoles } = require('../middleware/auth');
@@ -76,6 +77,33 @@ router.get('/user/me', authenticate, authorizeRoles('user'), getUserProfile);
  * NOTE: No JWT — worker must wait for admin approval (Slice 2)
  */
 router.post('/worker/verify-firebase-token', authRateLimiter, sanitizeInput, verifyWorkerFirebaseToken);
+
+/**
+ * PUT /api/auth/worker/reapply
+ *
+ * Called by a REJECTED worker to re-submit their application with updated details.
+ * Same body as /worker/verify-firebase-token.
+ * Firebase OTP must be completed first — client sends firebase_id_token.
+ *
+ * Body (JSON):
+ * {
+ *   "firebase_id_token": "eyJ...",
+ *   "name": "Usman Khan",
+ *   "cnic": "37405-1234567-9",
+ *   "phone": "03211234567",
+ *   "selfie_url": "https://res.cloudinary.com/...",
+ *   "cnic_front_url": "https://res.cloudinary.com/...",
+ *   "cnic_back_url": "https://res.cloudinary.com/...",
+ *   "skills": ["Plumbing"],
+ *   "fee": 1500,
+ *   "location": { "lat": 33.69, "lng": 73.05 }
+ * }
+ *
+ * Response 200:
+ * { "success": true, "message": "Re-application submitted successfully...", "worker": { "_id": "...", "status": "pending" } }
+ * NOTE: No JWT — worker must wait for admin approval again.
+ */
+router.put('/worker/reapply', authRateLimiter, sanitizeInput, workerReapply);
 
 /**
  * GET /api/auth/worker/me

@@ -73,6 +73,36 @@ export const registerWorker = async ({
 };
 
 /**
+ * Re-apply as a worker after being rejected.
+ * Calls PUT /api/auth/worker/reapply — updates the existing worker record
+ * and resets status from 'rejected' → 'pending' for admin re-review.
+ *
+ * ⚠️  Backend team: implement PUT /api/auth/worker/reapply
+ *   - Verify firebase_id_token to identify the worker by phone
+ *   - Update all fields: name, cnic, selfie_url, cnic_front_url, cnic_back_url, skills, fee, location
+ *   - Set status = 'pending', clear rejection_reason
+ *   - Return { success: true, message: 'Re-application submitted successfully' }
+ */
+export const reapplyWorker = async ({
+  firebase_id_token, name, cnic, phone,
+  selfie_url, cnic_front_url, cnic_back_url, skills, fee, location,
+}) => {
+  const response = await api.put('/api/auth/worker/reapply', {
+    firebase_id_token,
+    name,
+    cnic,
+    phone,
+    selfie_url,
+    cnic_front_url,
+    cnic_back_url,
+    skills,
+    fee,
+    location,
+  });
+  return response.data;
+};
+
+/**
  * Login — user or worker (role detected from DB)
  */
 export const loginWithFirebase = async ({ firebase_id_token, phone }) => {

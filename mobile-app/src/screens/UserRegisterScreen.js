@@ -1,8 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
   Image, Alert, StatusBar, KeyboardAvoidingView, Platform,
-  Animated, ActivityIndicator,
+  ActivityIndicator,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,14 +21,18 @@ export default function UserRegisterScreen({ navigation, route }) {
     phone: '',
   });
   const [errors, setErrors] = useState({});
+
+  // ─── Local image only (NOT yet uploaded) ──────────────────────────────────
   const [profileImage, setProfileImage] = useState(null);
-  const [profileImageUrl, setProfileImageUrl] = useState(null);
+
   const [location, setLocation] = useState(null);
   const [locationText, setLocationText] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [fetchingLocation, setFetchingLocation] = useState(false);
   const [globalError, setGlobalError] = useState('');
   const [cameraVisible, setCameraVisible] = useState(false);
+
+  // ─── Submitting state (upload + navigate) ─────────────────────────────────
+  const [submitting, setSubmitting] = useState(false);
 
   // Passed from OTPVerifyScreen (post-OTP, form data preserved)
   const prefilled = route?.params?.prefilled || {};
@@ -39,31 +43,21 @@ export default function UserRegisterScreen({ navigation, route }) {
     else if (form.name.trim().length > 100) newErrors.name = 'Name must be under 100 characters';
     if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
     else if (!isValidPakistaniPhone(form.phone.trim())) newErrors.phone = 'Format: 03XXXXXXXXX';
-    if (!profileImageUrl) newErrors.profileImage = 'Live photo is required';
+    if (!profileImage) newErrors.profileImage = 'Live photo is required';
     if (!location) newErrors.location = 'Location is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCameraCapture = async (uri) => {
+  // ─── Camera capture: store locally only ───────────────────────────────────
+  const handleCameraCapture = (uri) => {
     setCameraVisible(false);
     setProfileImage(uri);
-    setUploadingImage(true);
-    try {
-      const url = await uploadToCloudinary(uri, 'avatars');
-      setProfileImageUrl(url);
-      setErrors((e) => ({ ...e, profileImage: null }));
-    } catch (err) {
-      Alert.alert('Upload Failed', 'Could not upload photo. Please try again.');
-      setProfileImage(null);
-    } finally {
-      setUploadingImage(false);
-    }
+    setErrors((e) => ({ ...e, profileImage: null }));
   };
 
   const handleRetake = () => {
     setProfileImage(null);
-    setProfileImageUrl(null);
     setCameraVisible(true);
   };
 
@@ -95,21 +89,31 @@ export default function UserRegisterScreen({ navigation, route }) {
     }
   };
 
-  const handleNext = () => {
+  // ─── Submit: validate → upload photo → navigate ───────────────────────────
+  const handleNext = async () => {
     setGlobalError('');
     if (!validate()) return;
 
-    // Navigate to OTP verify, passing all registration data
-    navigation.navigate('OTPVerify', {
-      flow: 'userRegister',
-      phone: form.phone.trim(),
-      registrationData: {
-        name: form.name.trim(),
+    setSubmitting(true);
+    try {
+      // Upload profile photo only when the form is fully complete
+      const profileImageUrl = await uploadToCloudinary(profileImage, 'avatars');
+
+      navigation.navigate('OTPVerify', {
+        flow: 'userRegister',
         phone: form.phone.trim(),
-        profile_picture_url: profileImageUrl,
-        location,
-      },
-    });
+        registrationData: {
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          profile_picture_url: profileImageUrl,
+          location,
+        },
+      });
+    } catch (err) {
+      setGlobalError('Photo upload failed. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -126,6 +130,15 @@ export default function UserRegisterScreen({ navigation, route }) {
         title="Take your profile photo"
         subtitle="Center your face in the guide"
       />
+
+      {/* Full-screen overlay while uploading */}
+      {submitting && (
+        <View style={styles.submitOverlay}>
+          <ActivityIndicator color={COLORS.primary} size="large" />
+          <Text style={styles.submitOverlayText}>Uploading photo…</Text>
+          <Text style={styles.submitOverlayHint}>Please wait, do not close the app</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -144,23 +157,23 @@ export default function UserRegisterScreen({ navigation, route }) {
 
           {globalError ? <ErrorMessage message={globalError} /> : null}
 
+          {/* Upload-on-submit info banner */}
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoBannerIcon}>🔒</Text>
+            <Text style={styles.infoBannerText}>
+              Your photo is uploaded securely only when you complete and submit this form.
+            </Text>
+          </View>
+
           {/* Live Photo Capture */}
           <Text style={styles.sectionLabel}>LIVE PHOTO VERIFICATION</Text>
           {profileImage ? (
             <View style={styles.capturedContainer}>
               <Image source={{ uri: profileImage }} style={styles.capturedImage} />
-              {uploadingImage && (
-                <View style={styles.uploadOverlay}>
-                  <ActivityIndicator color="#fff" size="small" />
-                  <Text style={styles.uploadOverlayText}>Uploading...</Text>
-                </View>
-              )}
-              {profileImageUrl && !uploadingImage && (
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedIcon}>✓</Text>
-                  <Text style={styles.verifiedText}>Photo verified</Text>
-                </View>
-              )}
+              <View style={styles.verifiedBadge}>
+                <Text style={styles.verifiedIcon}>✓</Text>
+                <Text style={styles.verifiedText}>Photo captured (uploads on submit)</Text>
+              </View>
               <TouchableOpacity onPress={handleRetake} style={styles.retakeBtn} activeOpacity={0.8}>
                 <Text style={styles.retakeBtnText}>🔄 Retake Photo</Text>
               </TouchableOpacity>
@@ -233,9 +246,9 @@ export default function UserRegisterScreen({ navigation, route }) {
 
           {/* Submit */}
           <PrimaryButton
-            title="Send OTP & Continue"
+            title={submitting ? 'Uploading & Sending OTP…' : 'Send OTP & Continue'}
             onPress={handleNext}
-            disabled={uploadingImage || fetchingLocation}
+            disabled={submitting || fetchingLocation}
             style={{ marginTop: SPACING['3xl'] }}
           />
 
@@ -255,6 +268,48 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: SPACING['4xl'],
   },
+
+  // Full-screen overlay during upload-on-submit
+  submitOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(10,10,15,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 999,
+    gap: SPACING.md,
+  },
+  submitOverlayText: {
+    color: COLORS.textPrimary,
+    fontSize: FONTS.lg,
+    fontWeight: FONTS.bold,
+    marginTop: SPACING.md,
+  },
+  submitOverlayHint: {
+    color: COLORS.textSecondary,
+    fontSize: FONTS.sm,
+  },
+
+  // Upload-on-submit info banner
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(74,158,255,0.1)',
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(74,158,255,0.2)',
+    gap: SPACING.sm,
+  },
+  infoBannerIcon: { fontSize: 16, marginTop: 1 },
+  infoBannerText: {
+    flex: 1,
+    color: COLORS.info,
+    fontSize: FONTS.xs,
+    lineHeight: 18,
+    fontWeight: FONTS.medium,
+  },
+
   sectionLabel: {
     color: COLORS.textSecondary,
     fontSize: FONTS.xs,
@@ -337,14 +392,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: RADIUS.xl - 2,
     borderTopRightRadius: RADIUS.xl - 2,
   },
-  uploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-  },
-  uploadOverlayText: { color: COLORS.textPrimary, fontWeight: FONTS.semibold },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -416,4 +463,3 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
 });
-

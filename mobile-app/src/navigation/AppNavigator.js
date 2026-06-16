@@ -13,6 +13,7 @@ import WorkerRegisterScreen from '../screens/WorkerRegisterScreen';
 import OTPVerifyScreen from '../screens/OTPVerifyScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PendingApprovalScreen from '../screens/PendingApprovalScreen';
+import RejectedScreen from '../screens/RejectedScreen';
 import UserHomeScreen from '../screens/UserHomeScreen';
 import WorkerHomeScreen from '../screens/WorkerHomeScreen';
 
@@ -51,7 +52,9 @@ export default function AppNavigator() {
     if (!isAuthenticated) return 'Splash';
     if (role === 'user') return 'UserHome';
     if (role === 'worker') {
-      return user?.status === 'pending' ? 'PendingApproval' : 'WorkerHome';
+      if (user?.status === 'pending') return 'PendingApproval';
+      if (user?.status === 'rejected') return 'Rejected';
+      return 'WorkerHome';
     }
     return 'Splash';
   };
@@ -72,6 +75,7 @@ export default function AppNavigator() {
 
         {/* Post-auth */}
         <Stack.Screen name="PendingApproval" component={PendingApprovalScreen} />
+        <Stack.Screen name="Rejected" component={RejectedScreen} />
         <Stack.Screen name="UserHome" component={UserHomeScreen} />
         <Stack.Screen name="WorkerHome" component={WorkerHomeScreen} />
       </Stack.Navigator>
